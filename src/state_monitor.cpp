@@ -50,6 +50,7 @@
 #include <netdb.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <cstdio>
 #include <cstring>
 #include <fstream>
 
@@ -182,8 +183,11 @@ private:
     int32_t     link_quality = -1;
   };
 
-  std::string _wifi_interface_; // configurable, empty = auto-detect first interface
-  WifiInfo    read_wifi_info();
+  std::string  _wifi_interface_; // configurable, empty = auto-detect first interface
+  WifiInfo     cached_wifi_info_;
+  rclcpp::Time last_wifi_read_time_;
+  static constexpr double WIFI_READ_INTERVAL_S = 1.0;
+  WifiInfo     read_wifi_info();
 
   // | ------------------------ UAV state ----------------------- |
   mrs_lib::PublisherHandler<mrs_msgs::msg::State> ph_uav_state_;
@@ -475,6 +479,7 @@ void StateMonitor::initialize() {
   // | -------------------- SystemHealthInfo -------------------- |
   ph_system_health_info_    = mrs_lib::PublisherHandler<mrs_msgs::msg::SystemHealthInfo>(node_, "~/system_health_info_out");
   last_system_health_info_  = init_system_health_info();
+  last_wifi_read_time_      = clock_->now();
   sh_hw_api_magnetic_field_ = mrs_lib::SubscriberHandler<sensor_msgs::msg::MagneticField>(shopts, "~/hw_api_magnetic_field_in", mrs_lib::no_timeout);
 
   // | ------------------------ UAV state ----------------------- |
@@ -564,7 +569,7 @@ void StateMonitor::timerMain() {
   if (hw_api_status.hasNewMessage || uav_status.hasNewMessage || mass_nominal.hasNewMessage | mass_estimate.hasNewMessage)
     last_uav_info_ = parse_uav_info(hw_api_status.message, uav_status.message, mass_nominal.message, mass_estimate.message);
 
-  if (uav_status.hasNewMessage || hw_api_gnss.hasNewMessage)
+  if (uav_status.hasNewMessage || hw_api_gnss.hasNewMessage || hw_api_magnetic_field.hasNewMessage || hw_api_rc_rssi.hasNewMessage)
     last_system_health_info_ = parse_system_health_info(uav_status.message, hw_api_gnss.message, hw_api_magnetic_field.message, hw_api_rc_rssi.message);
 
   ph_general_robot_info_.publish(last_general_robot_info_);
@@ -1154,15 +1159,25 @@ mrs_msgs::msg::SystemHealthInfo StateMonitor::init_system_health_info() {
   msg.wifi_interface    = "";
   msg.wifi_signal_dbm   = std::numeric_limits<float>::quiet_NaN();
   msg.wifi_link_quality = -1;
+  msg.rc_rssi           = -1;
 
   return msg;
 }
 
 StateMonitor::WifiInfo StateMonitor::read_wifi_info() {
+
+  // return cached value if less than WIFI_READ_INTERVAL_S has passed
+  const auto now = clock_->now(); 
+  if ((now - last_wifi_read_time_).seconds() < WIFI_READ_INTERVAL_S) {
+    return cached_wifi_info_;
+  }
+  last_wifi_read_time_ = now;
+
   WifiInfo info;
 
   std::ifstream file("/proc/net/wireless");
   if (!file.is_open()) {
+    cached_wifi_info_ = info;
     return info;
   }
 
@@ -1195,9 +1210,11 @@ StateMonitor::WifiInfo StateMonitor::read_wifi_info() {
     info.interface    = iface;
     info.signal_dbm   = level;
     info.link_quality = link;
+    cached_wifi_info_ = info;
     return info;
   }
 
+  cached_wifi_info_ = info;
   return info;
 }
 

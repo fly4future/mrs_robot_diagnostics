@@ -1,3 +1,17 @@
+/**
+ * @file state_monitor.h
+ * @brief UAV state monitoring and diagnostics aggregation node.
+ *
+ * The StateMonitor is a ROS2 composable node that aggregates data from multiple
+ * subsystems (HW API, control manager, estimation, sensors) into unified
+ * diagnostics messages. It maintains a UAV state machine, publishes system
+ * health information (CPU, RAM, GNSS, magnetometer, WiFi signal), and monitors
+ * sensor status via pluginlib-loaded sensor handler plugins.
+ *
+ * Published topics include: GeneralRobotInfo, StateEstimationInfo, ControlInfo,
+ * CollisionAvoidanceInfo, UavInfo, SystemHealthInfo, UavState, and error graphs.
+ */
+
 #pragma once
 
 #include <rclcpp/rclcpp.hpp>
@@ -66,6 +80,9 @@ namespace mrs_robot_diagnostics
 namespace state_monitor
 {
 
+/**
+ * @brief Parameters for a dynamically loaded sensor handler plugin.
+ */
 class SensorHandlerParams {
 
 public:
@@ -79,23 +96,39 @@ public:
   }
 
 public:
-  std::string address;
-  std::string name_space;
-  std::string sensor_name;
-  std::string type;
-  std::string topic;
+  std::string address;     ///< pluginlib class address
+  std::string name_space;  ///< robot namespace
+  std::string sensor_name; ///< human-readable sensor name
+  std::string type;        ///< sensor type identifier
+  std::string topic;       ///< ROS topic for the sensor data
 };
 
+/**
+ * @brief ROS2 composable node that aggregates UAV diagnostics from multiple subsystems.
+ *
+ * Subscribes to HW API, control manager, estimation, battery, GNSS, magnetometer,
+ * and RC channels. Publishes unified diagnostics messages at configurable rates.
+ * Maintains a UAV state machine (DISARMED, ARMED, OFFBOARD, TAKEOFF, HOVER, etc.)
+ * and monitors system health including CPU, RAM, WiFi signal strength, and sensor status.
+ */
 class StateMonitor : public mrs_lib::Node {
 
 public:
+  /**
+   * @brief Construct the StateMonitor node.
+   * @param options ROS2 node options (used for composable node loading).
+   */
   StateMonitor(rclcpp::NodeOptions options);
 
+  /**
+   * @brief Result of checking a subscriber for new messages.
+   * @tparam T The ROS message type.
+   */
   template <typename T>
   struct subscriptionResult_t
   {
-    bool                       hasNewMessage;
-    typename T::ConstSharedPtr message;
+    bool                       hasNewMessage; ///< true if a new message arrived since last check
+    typename T::ConstSharedPtr message;       ///< latest message, or nullptr if timed out
   };
 
 private:
@@ -104,12 +137,15 @@ private:
   rclcpp::Node::SharedPtr  node_;
   rclcpp::Clock::SharedPtr clock_;
 
-  rclcpp::CallbackGroup::SharedPtr cbkgrp_subs_;
-  rclcpp::CallbackGroup::SharedPtr cbkgrp_ss_;
-  rclcpp::CallbackGroup::SharedPtr cbkgrp_sc_;
-  rclcpp::CallbackGroup::SharedPtr cbkgrp_timers_;
+  rclcpp::CallbackGroup::SharedPtr cbkgrp_subs_;   ///< callback group for subscribers
+  rclcpp::CallbackGroup::SharedPtr cbkgrp_ss_;      ///< callback group for service servers
+  rclcpp::CallbackGroup::SharedPtr cbkgrp_sc_;      ///< callback group for service clients
+  rclcpp::CallbackGroup::SharedPtr cbkgrp_timers_;  ///< callback group for timers
 
+  /** @brief Load parameters, create subscribers/publishers/timers, initialize plugins. */
   void initialize(void);
+
+  /** @brief Graceful shutdown. */
   void shutdown();
 
   std::atomic<bool> is_initialized_ = false;
@@ -118,14 +154,13 @@ private:
 
   std::shared_ptr<mrs_lib::ParamLoader> param_loader_;
 
-  std::mutex                          uav_state_mutex_;
+  std::mutex                          uav_state_mutex_;  ///< guards uav_state_ across timer callbacks
   enum_helpers::enum_updater<state_t> uav_state_;
 
-  std::mutex errorgraph_mtx_;
+  std::mutex errorgraph_mtx_;  ///< guards errorgraph_ across timer and subscriber callbacks
 
-  // TODO to test
-  mrs_lib::errorgraph::Errorgraph      errorgraph_;
-  rclcpp::Duration                     not_reporting_delay_;
+  mrs_lib::errorgraph::Errorgraph      errorgraph_;          ///< dependency/error graph for readiness tracking
+  rclcpp::Duration                     not_reporting_delay_;  ///< timeout before marking a topic as not reporting
   const mrs_lib::errorgraph::node_id_t autostart_node_id_ = {"AutomaticStart", "main"};
 
   std::string  _robot_name_;
@@ -177,92 +212,144 @@ private:
   mrs_lib::SubscriberHandler<sensor_msgs::msg::MagneticField> sh_hw_api_magnetic_field_;
 
   // | ---------------------- WiFi info ----------------------- |
+
+  /**
+   * @brief Cached WiFi link information read from /proc/net/wireless.
+   */
   struct WifiInfo
   {
-    std::string interface;
-    float       signal_dbm   = std::numeric_limits<float>::quiet_NaN();
-    int32_t     link_quality = -1;
+    std::string interface;                                            ///< interface name (e.g. "wlp2s0"), empty if unavailable
+    float       signal_dbm   = std::numeric_limits<float>::quiet_NaN(); ///< RSSI in dBm (e.g. -46)
+    int32_t     link_quality = -1;                                    ///< driver-reported link quality (0-70 typical)
   };
 
-  std::string  _wifi_interface_; // configurable, empty = auto-detect first interface
+  std::string  _wifi_interface_;  ///< configurable interface name, empty = auto-detect first
   WifiInfo     cached_wifi_info_;
   rclcpp::Time last_wifi_read_time_;
-  static constexpr double WIFI_READ_INTERVAL_S = 1.0;
-  WifiInfo     readWifiInfo();
+  static constexpr double WIFI_READ_INTERVAL_S = 1.0;  ///< minimum interval between /proc/net/wireless reads
+
+  /**
+   * @brief Read WiFi signal info from /proc/net/wireless with 1 Hz caching.
+   * @return WifiInfo struct with current signal data, or defaults (NaN/-1) if unavailable.
+   */
+  WifiInfo readWifiInfo();
 
   // | ------------------------ UAV state ----------------------- |
   mrs_lib::PublisherHandler<mrs_msgs::msg::State> ph_uav_state_;
-
-  // |
 
   // | ----------------------- Root errors ----------------------- |
   mrs_lib::PublisherHandler<mrs_msgs::msg::ErrorgraphElementArray> ph_root_errors_;
   mrs_lib::SubscriberHandler<mrs_msgs::msg::ErrorgraphElement>     sh_errorgraph_error_msg_;
 
+  // | -------------------- Sensor handlers --------------------- |
   std::unique_ptr<pluginlib::ClassLoader<mrs_robot_diagnostics::SensorHandler>>
-                                                                     sensor_handler_loader_;  // pluginlib loader of dynamically loaded sensor handlers
-  std::vector<std::string>                                           _sensor_handler_names_;  // list of sensor handlers names
-  std::map<std::string, SensorHandlerParams>                         sensor_handlers_params_; // map between sensor handler names and params
-  std::vector<std::shared_ptr<mrs_robot_diagnostics::SensorHandler>> sensor_handlers_;        // list of sensor handlers, routines are callable from this
+                                                                     sensor_handler_loader_;  ///< pluginlib loader for sensor handler plugins
+  std::vector<std::string>                                           _sensor_handler_names_;
+  std::map<std::string, SensorHandlerParams>                         sensor_handlers_params_;
+  std::vector<std::shared_ptr<mrs_robot_diagnostics::SensorHandler>> sensor_handlers_;
   std::mutex                                                         mutex_sensor_handler_list_;
 
-  // | ----------------------- main timer ----------------------- |
+  // | ----------------------- Timers --------------------------- |
 
-  // timer for main loop
   std::shared_ptr<TimerType> timer_main_;
+  /** @brief Main diagnostics loop: reads all subscribers, updates state, publishes all diagnostics messages. */
   void                       timerMain();
 
-  // timer error publishing
   std::shared_ptr<TimerType> timer_error_publishing_;
+  /** @brief Publishes root error graph elements for upstream monitoring. */
   void                       timerErrorPublishing();
 
-  // timer for uav state publishing
   std::shared_ptr<TimerType> timer_uav_state_;
+  /** @brief Fast UAV state update loop (publishes only on state change). */
   void                       timerUavState();
 
-  // timer for sensor status updating
   std::shared_ptr<TimerType> timer_update_sensor_status_;
+  /** @brief Polls all sensor handler plugins and updates available_sensors_. */
   void                       timerUpdateSensorStatus();
 
   // | ------------------------ Callbacks ----------------------- |
-  // TODO to test errorgraph_
+
+  /** @brief Callback for incoming error graph elements from other nodes. */
   void cbk_errorgraph_element(const mrs_msgs::msg::ErrorgraphElement::ConstSharedPtr element_msg);
 
   // | ------------------ Additional functions ------------------ |
+
+  /** @brief Split a whitespace-delimited string into a vector of tokens. */
   std::vector<std::string> extractComponents(const std::string &input);
 
+  /**
+   * @brief Check a subscriber for new messages, applying the not-reporting timeout.
+   * @tparam sh_T The ROS message type of the subscriber.
+   * @param sh The subscriber handler to check.
+   * @return subscriptionResult_t with the latest message and whether it is new.
+   *
+   * If the subscriber has not received a message within not_reporting_delay_,
+   * the message is set to nullptr and hasNewMessage is set to true (to trigger
+   * downstream handling of the "not reporting" case).
+   */
   template <typename sh_T>
   subscriptionResult_t<sh_T> processIncomingMessage(mrs_lib::SubscriberHandler<sh_T> &sh);
 
-  tracker_state_t parse_tracker_state(mrs_msgs::msg::ControlManagerDiagnostics::ConstSharedPtr control_manager_diagnostics);
-  robot_type_t    parse_robot_type(const std::string &robot_type_str);
+  // | -------------------- Parsing methods --------------------- |
 
-  state_t                               parse_uav_state(mrs_msgs::msg::HwApiStatus::ConstSharedPtr               hw_api_status,
-                                                        mrs_msgs::msg::ControlManagerDiagnostics::ConstSharedPtr control_manager_diagnostics);
-  mrs_msgs::msg::GeneralRobotInfo       parse_general_robot_info(sensor_msgs::msg::BatteryState::ConstSharedPtr battery_state);
-  mrs_msgs::msg::StateEstimationInfo    parse_state_estimation_info(mrs_msgs::msg::EstimationDiagnostics::ConstSharedPtr estimation_diagnostics,
-                                                                    mrs_msgs::msg::Float64Stamped::ConstSharedPtr        local_heading,
-                                                                    sensor_msgs::msg::NavSatFix::ConstSharedPtr          global_position,
-                                                                    mrs_msgs::msg::Float64Stamped::ConstSharedPtr        global_heading);
-  mrs_msgs::msg::ControlInfo            parse_control_info(mrs_msgs::msg::ControlManagerDiagnostics::ConstSharedPtr control_manager_diagnostics,
-                                                           std_msgs::msg::Float64::ConstSharedPtr                   thrust);
+  /** @brief Map ControlManagerDiagnostics tracker status to internal tracker_state_t. */
+  tracker_state_t parse_tracker_state(mrs_msgs::msg::ControlManagerDiagnostics::ConstSharedPtr control_manager_diagnostics);
+
+  /** @brief Map a robot type string (e.g. "multirotor") to robot_type_t enum. */
+  robot_type_t parse_robot_type(const std::string &robot_type_str);
+
+  /** @brief Determine overall UAV state from HW API status and control manager diagnostics. */
+  state_t parse_uav_state(mrs_msgs::msg::HwApiStatus::ConstSharedPtr               hw_api_status,
+                          mrs_msgs::msg::ControlManagerDiagnostics::ConstSharedPtr control_manager_diagnostics);
+
+  /** @brief Build GeneralRobotInfo from battery state, autostart status, and error graph. */
+  mrs_msgs::msg::GeneralRobotInfo parse_general_robot_info(sensor_msgs::msg::BatteryState::ConstSharedPtr battery_state);
+
+  /** @brief Build StateEstimationInfo from estimation diagnostics, headings, and GNSS. */
+  mrs_msgs::msg::StateEstimationInfo parse_state_estimation_info(mrs_msgs::msg::EstimationDiagnostics::ConstSharedPtr estimation_diagnostics,
+                                                                  mrs_msgs::msg::Float64Stamped::ConstSharedPtr        local_heading,
+                                                                  sensor_msgs::msg::NavSatFix::ConstSharedPtr          global_position,
+                                                                  mrs_msgs::msg::Float64Stamped::ConstSharedPtr        global_heading);
+
+  /** @brief Build ControlInfo from control manager diagnostics and thrust. */
+  mrs_msgs::msg::ControlInfo parse_control_info(mrs_msgs::msg::ControlManagerDiagnostics::ConstSharedPtr control_manager_diagnostics,
+                                                std_msgs::msg::Float64::ConstSharedPtr                   thrust);
+
+  /** @brief Build CollisionAvoidanceInfo from MPC tracker diagnostics. */
   mrs_msgs::msg::CollisionAvoidanceInfo parse_collision_avoidance_info(mrs_msgs::msg::MpcTrackerDiagnostics::ConstSharedPtr mpc_tracker_diagnostics);
-  mrs_msgs::msg::UavInfo          parse_uav_info(mrs_msgs::msg::HwApiStatus::ConstSharedPtr hw_api_status, mrs_msgs::msg::UavStatus::ConstSharedPtr uav_status,
-                                                 std_msgs::msg::Float64::ConstSharedPtr mass_nominal, std_msgs::msg::Float64::ConstSharedPtr mass_estimate);
+
+  /** @brief Build UavInfo from HW API status, UAV status, and mass estimates. */
+  mrs_msgs::msg::UavInfo parse_uav_info(mrs_msgs::msg::HwApiStatus::ConstSharedPtr hw_api_status, mrs_msgs::msg::UavStatus::ConstSharedPtr uav_status,
+                                        std_msgs::msg::Float64::ConstSharedPtr mass_nominal, std_msgs::msg::Float64::ConstSharedPtr mass_estimate);
+
+  /** @brief Build SystemHealthInfo from UAV status, GNSS, magnetometer, RC RSSI, and WiFi. */
   mrs_msgs::msg::SystemHealthInfo parse_system_health_info(mrs_msgs::msg::UavStatus::ConstSharedPtr        uav_status,
                                                            sensor_msgs::msg::NavSatFix::ConstSharedPtr     gnss,
                                                            sensor_msgs::msg::MagneticField::ConstSharedPtr magnetic_field,
                                                            std_msgs::msg::UInt8::ConstSharedPtr  rc_rssi);
 
+  // | ------------------- Init methods ------------------------- |
+
+  /** @brief Create a default-initialized GeneralRobotInfo message. */
   mrs_msgs::msg::GeneralRobotInfo       init_general_robot_info();
+  /** @brief Create a default-initialized StateEstimationInfo message (NaN-filled). */
   mrs_msgs::msg::StateEstimationInfo    init_state_estimation_info();
+  /** @brief Create a default-initialized ControlInfo message. */
   mrs_msgs::msg::ControlInfo            init_control_info();
+  /** @brief Create a default-initialized CollisionAvoidanceInfo message. */
   mrs_msgs::msg::CollisionAvoidanceInfo init_collision_avoidance_info();
+  /** @brief Create a default-initialized UavInfo message. */
   mrs_msgs::msg::UavInfo                init_uav_info();
+  /** @brief Create a default-initialized SystemHealthInfo message (NaN/-1 filled). */
   mrs_msgs::msg::SystemHealthInfo       init_system_health_info();
 };
 
-// Template method definition — must be in the header
+/**
+ * @brief Template definition for processIncomingMessage.
+ *
+ * Must be in the header because it is a template method instantiated
+ * with multiple message types in the .cpp file.
+ */
 template <typename sh_T>
 StateMonitor::subscriptionResult_t<sh_T> StateMonitor::processIncomingMessage(mrs_lib::SubscriberHandler<sh_T> &sh) {
   StateMonitor::subscriptionResult_t<sh_T> msg;

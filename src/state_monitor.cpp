@@ -207,7 +207,7 @@ void StateMonitor::initialize() {
   sh_hw_api_gnss_             = mrs_lib::SubscriberHandler<sensor_msgs::msg::NavSatFix>(shopts, "~/hw_api_gnss_in");
   sh_control_manager_heading_ = mrs_lib::SubscriberHandler<mrs_msgs::msg::Float64Stamped>(shopts, "~/control_manager_heading_in");
   sh_hw_api_mag_heading_      = mrs_lib::SubscriberHandler<mrs_msgs::msg::Float64Stamped>(shopts, "~/hw_api_mag_heading_in");
-  sh_hw_api_rc_rssi_          = mrs_lib::SubscriberHandler<std_msgs::msg::UInt8>(shopts, "~/hw_api_rc_rssi_in");
+  sh_hw_api_rc_rssi_          = mrs_lib::SubscriberHandler<mrs_msgs::msg::HwApiRcRssi>(shopts, "~/hw_api_rc_rssi_in");
 
   // | ----------------------- ControlInfo ---------------------- |
   ph_control_info_                = mrs_lib::PublisherHandler<mrs_msgs::msg::ControlInfo>(node_, "~/control_info_out");
@@ -736,7 +736,7 @@ mrs_msgs::msg::UavInfo StateMonitor::parse_uav_info(mrs_msgs::msg::HwApiStatus::
 mrs_msgs::msg::SystemHealthInfo StateMonitor::parse_system_health_info(mrs_msgs::msg::UavStatus::ConstSharedPtr        uav_status,
                                                                        sensor_msgs::msg::NavSatFix::ConstSharedPtr     gnss,
                                                                        sensor_msgs::msg::MagneticField::ConstSharedPtr magnetic_field,
-                                                                       std_msgs::msg::UInt8::ConstSharedPtr  rc_rssi) {
+                                                                       mrs_msgs::msg::HwApiRcRssi::ConstSharedPtr      rc_rssi) {
   mrs_msgs::msg::SystemHealthInfo msg = init_system_health_info();
 
   const bool is_uav_status_valid     = uav_status != nullptr;
@@ -773,7 +773,7 @@ mrs_msgs::msg::SystemHealthInfo StateMonitor::parse_system_health_info(mrs_msgs:
     msg.mag_uncertainty       = std::cbrt(cov.determinant());
   }
 
-  //Get Wifi info from the system
+  // Get Wifi info from the system
   const auto wifi = readWifiInfo();
   if (!wifi.interface.empty()) {
     msg.wifi_interface    = wifi.interface;
@@ -781,9 +781,9 @@ mrs_msgs::msg::SystemHealthInfo StateMonitor::parse_system_health_info(mrs_msgs:
     msg.wifi_link_quality = wifi.link_quality;
   }
 
-  //Get RC signal info
+  // Get RC signal info
   if (rc_rssi != nullptr) {
-    msg.rc_rssi = rc_rssi->data;
+    msg.rc_rssi = static_cast<float>(rc_rssi->rssi);
   }
 
   msg.available_sensors = available_sensors_;

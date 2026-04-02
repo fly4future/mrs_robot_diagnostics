@@ -31,7 +31,7 @@
 #include <mrs_msgs/msg/uav_state.hpp>
 #include <mrs_msgs/msg/system_health_info.hpp>
 #include <mrs_msgs/msg/hw_api_status.hpp>
-#include <std_msgs/msg/u_int8.hpp>
+#include <mrs_msgs/msg/hw_api_rc_rssi.hpp>
 #include <mrs_msgs/msg/uav_status.hpp>
 #include <mrs_msgs/msg/mpc_tracker_diagnostics.hpp>
 #include <mrs_msgs/msg/sensor_status.hpp>
@@ -179,7 +179,7 @@ private:
   mrs_lib::SubscriberHandler<sensor_msgs::msg::NavSatFix>          sh_hw_api_gnss_;
   mrs_lib::SubscriberHandler<mrs_msgs::msg::Float64Stamped>        sh_control_manager_heading_;
   mrs_lib::SubscriberHandler<mrs_msgs::msg::Float64Stamped>        sh_hw_api_mag_heading_;
-  mrs_lib::SubscriberHandler<std_msgs::msg::UInt8>                 sh_hw_api_rc_rssi_;
+  mrs_lib::SubscriberHandler<mrs_msgs::msg::HwApiRcRssi>           sh_hw_api_rc_rssi_;
 
   // | ----------------------- ControlInfo ---------------------- |
   mrs_lib::PublisherHandler<mrs_msgs::msg::ControlInfo>                ph_control_info_;
@@ -319,7 +319,7 @@ private:
   mrs_msgs::msg::SystemHealthInfo parse_system_health_info(mrs_msgs::msg::UavStatus::ConstSharedPtr        uav_status,
                                                            sensor_msgs::msg::NavSatFix::ConstSharedPtr     gnss,
                                                            sensor_msgs::msg::MagneticField::ConstSharedPtr magnetic_field,
-                                                           std_msgs::msg::UInt8::ConstSharedPtr            rc_rssi);
+                                                           mrs_msgs::msg::HwApiRcRssi::ConstSharedPtr      rc_rssi);
 
   // | ------------------- Init methods ------------------------- |
 

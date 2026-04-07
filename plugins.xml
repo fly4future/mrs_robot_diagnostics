@@ -4,3 +4,9 @@
   </class>
 </library>
 
+<library path="MrsRobotDiagnostics_GenericSensorHandler">
+  <class name="mrs_robot_diagnostics/GenericSensorHandler" type="mrs_robot_diagnostics::generic_handler::GenericSensorHandler" base_class_type="mrs_robot_diagnostics::SensorHandler">
+    <description>Generic sensor handler for monitoring topic publish rate</description>
+  </class>
+</library>
+

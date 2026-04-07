@@ -42,6 +42,7 @@ set(DEPENDENCIES
 set(LIBRARIES
   MrsRobotDiagnostics_StateMonitor
   MrsRobotDiagnostics_CameraHandler
+  MrsRobotDiagnostics_GenericSensorHandler
 )
 
 foreach(DEP IN LISTS DEPENDENCIES)
@@ -114,6 +115,19 @@ target_link_libraries(MrsRobotDiagnostics_CameraHandler
 )
 
 target_compile_definitions(MrsRobotDiagnostics_CameraHandler PRIVATE USE_ROS_TIMER=${USE_ROS_TIMER})
+
+## | -------- MrsRobotDiagnostics_GenericSensorHandler --------- |
+
+add_library(MrsRobotDiagnostics_GenericSensorHandler SHARED
+  src/sensor_handler_plugins/generic_handler.cpp
+)
+
+target_link_libraries(MrsRobotDiagnostics_GenericSensorHandler
+  PRIVATE
+    mrs_robot_diagnostics::mrs_robot_diagnostics
+)
+
+target_compile_definitions(MrsRobotDiagnostics_GenericSensorHandler PRIVATE USE_ROS_TIMER=${USE_ROS_TIMER})
 
 ## --------------------------------------------------------------
 ## |                       Export plugins                       |

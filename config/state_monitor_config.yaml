@@ -8,7 +8,7 @@ robot_diagnostics:
     # the list of sensors to monitor
     sensor_handler_names: [
       # Example sensor handlers
-      # "CameraHandler",
+      "PX4_SIM",
       # "LidarHandler",
       # "IMUHandler",
       # "GPSHandler",
@@ -24,6 +24,16 @@ robot_diagnostics:
       type: "Camera"
       address: "mrs_robot_diagnostics/CameraHandler"
       topic: "/servo_camera/"
+
+    PX4_SIM:
+       name: "PX4 Simulation"
+       type: "Autopilot"
+       address: "mrs_robot_diagnostics/GenericSensorHandler"
+       topic: "hw_api/status" # Don't add the leading slash, the name will be resolved relative to the node's namespace 
+       message_type: "mrs_msgs/msg/HwApiStatus"
+       qos_reliability: "reliable"              # QoS reliability setting (default: "reliable")
+       expected_rate: 100.0                      # Hz
+       rate_tolerance: 0.3                      # 30% deviation allowed (default)
 
     update_timer_rate: 1.0 # [Hz]
 

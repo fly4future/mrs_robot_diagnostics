@@ -5,6 +5,8 @@ robot_diagnostics:
   not_reporting_delay: 3.0 # [s]
 
   sensor_handlers:
+    # the rate at which the sensor handlers will be updated, this is the rate at which the diagnostics will be published
+    update_timer_rate: 1.0 # [Hz]
     # the list of sensors to monitor
     sensor_handler_names: [
       # Example sensor handlers
@@ -34,8 +36,3 @@ robot_diagnostics:
        qos_reliability: "reliable"              # QoS reliability setting (default: "reliable")
        expected_rate: 100.0                      # Hz
        rate_tolerance: 0.3                      # 30% deviation allowed (default)
-
-    update_timer_rate: 1.0 # [Hz]
-
-
-

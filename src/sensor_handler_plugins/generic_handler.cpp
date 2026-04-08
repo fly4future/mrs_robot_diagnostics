@@ -125,9 +125,6 @@ mrs_msgs::msg::SensorStatus GenericSensorHandler::updateStatus() {
     return ss;
   }
 
-  RCLCPP_INFO(rclcpp::get_logger("GenericSensorHandler"), "[GenericSensorHandler] Updating status for '%s': measured_rate=%.2f Hz, expected_rate=%.2f Hz",
-              name_.c_str(), measured_rate_, expected_rate_);
-
   std::scoped_lock lock(mutex_timestamps_);
 
   rclcpp::Time now                = rclcpp::Clock(RCL_STEADY_TIME).now();

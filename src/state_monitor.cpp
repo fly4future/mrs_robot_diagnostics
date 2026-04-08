@@ -210,10 +210,12 @@ void StateMonitor::initialize() {
   sh_hw_api_rc_rssi_          = mrs_lib::SubscriberHandler<mrs_msgs::msg::HwApiRcRssi>(shopts, "~/hw_api_rc_rssi_in");
 
   // | ----------------------- ControlInfo ---------------------- |
-  ph_control_info_                = mrs_lib::PublisherHandler<mrs_msgs::msg::ControlInfo>(node_, "~/control_info_out");
-  last_control_info_              = init_control_info();
-  sh_control_manager_diagnostics_ = mrs_lib::SubscriberHandler<mrs_msgs::msg::ControlManagerDiagnostics>(shopts, "~/control_manager_diagnostics_in");
-  sh_control_manager_thrust_      = mrs_lib::SubscriberHandler<std_msgs::msg::Float64>(shopts, "~/control_manager_thrust_in");
+  ph_control_info_                   = mrs_lib::PublisherHandler<mrs_msgs::msg::ControlInfo>(node_, "~/control_info_out");
+  last_control_info_                 = init_control_info();
+  sh_constraint_manager_diagnostics_ = mrs_lib::SubscriberHandler<mrs_msgs::msg::ConstraintManagerDiagnostics>(shopts, "~/constraint_manager_diagnostics_in");
+  sh_control_manager_diagnostics_    = mrs_lib::SubscriberHandler<mrs_msgs::msg::ControlManagerDiagnostics>(shopts, "~/control_manager_diagnostics_in");
+  sh_control_manager_thrust_         = mrs_lib::SubscriberHandler<std_msgs::msg::Float64>(shopts, "~/control_manager_thrust_in");
+  sh_gain_manager_diagnostics_       = mrs_lib::SubscriberHandler<mrs_msgs::msg::GainManagerDiagnostics>(shopts, "~/gain_manager_diagnostics_in");
 
   // | ----------------- CollisionAvoidanceInfo ----------------- |
   ph_collision_avoidance_info_   = mrs_lib::PublisherHandler<mrs_msgs::msg::CollisionAvoidanceInfo>(node_, "~/collision_avoidance_info_out");
@@ -285,21 +287,23 @@ void StateMonitor::timerMain() {
     return;
   }
   std::scoped_lock lck(uav_state_mutex_);
-  const auto       now                         = clock_->now();
-  const auto       uav_status                  = processIncomingMessage(sh_uav_status_);
-  const auto       hw_api_gnss                 = processIncomingMessage(sh_hw_api_gnss_);
-  const auto       battery_state               = processIncomingMessage(sh_battery_state_);
-  const auto       hw_api_status               = processIncomingMessage(sh_hw_api_status_);
-  const auto       control_manager_diagnostics = processIncomingMessage(sh_control_manager_diagnostics_);
-  const auto       estimation_diagnostics      = processIncomingMessage(sh_estimation_diagnostics_);
-  const auto       control_manager_heading     = processIncomingMessage(sh_control_manager_heading_);
-  const auto       hw_api_mag_heading          = processIncomingMessage(sh_hw_api_mag_heading_);
-  const auto       hw_api_rc_rssi              = processIncomingMessage(sh_hw_api_rc_rssi_);
-  const auto       control_manager_thrust      = processIncomingMessage(sh_control_manager_thrust_);
-  const auto       mpc_tracker_diagnostics     = processIncomingMessage(sh_mpc_tracker_diagnostics_);
-  const auto       mass_nominal                = processIncomingMessage(sh_mass_nominal_);
-  const auto       mass_estimate               = processIncomingMessage(sh_mass_estimate_);
-  const auto       hw_api_magnetic_field       = processIncomingMessage(sh_hw_api_magnetic_field_);
+  const auto       now                             = clock_->now();
+  const auto       battery_state                   = processIncomingMessage(sh_battery_state_);
+  const auto       control_manager_diagnostics     = processIncomingMessage(sh_control_manager_diagnostics_);
+  const auto       control_manager_heading         = processIncomingMessage(sh_control_manager_heading_);
+  const auto       control_manager_thrust          = processIncomingMessage(sh_control_manager_thrust_);
+  const auto       contstraint_manager_diagnostics = processIncomingMessage(sh_constraint_manager_diagnostics_);
+  const auto       gain_manager_diagnostics        = processIncomingMessage(sh_gain_manager_diagnostics_);
+  const auto       estimation_diagnostics          = processIncomingMessage(sh_estimation_diagnostics_);
+  const auto       hw_api_gnss                     = processIncomingMessage(sh_hw_api_gnss_);
+  const auto       hw_api_mag_heading              = processIncomingMessage(sh_hw_api_mag_heading_);
+  const auto       hw_api_magnetic_field           = processIncomingMessage(sh_hw_api_magnetic_field_);
+  const auto       hw_api_rc_rssi                  = processIncomingMessage(sh_hw_api_rc_rssi_);
+  const auto       hw_api_status                   = processIncomingMessage(sh_hw_api_status_);
+  const auto       mass_estimate                   = processIncomingMessage(sh_mass_estimate_);
+  const auto       mass_nominal                    = processIncomingMessage(sh_mass_nominal_);
+  const auto       mpc_tracker_diagnostics         = processIncomingMessage(sh_mpc_tracker_diagnostics_);
+  const auto       uav_status                      = processIncomingMessage(sh_uav_status_);
 
   if (hw_api_status.hasNewMessage || control_manager_diagnostics.hasNewMessage) {
     const auto new_state = parse_uav_state(hw_api_status.message, control_manager_diagnostics.message);
@@ -312,8 +316,10 @@ void StateMonitor::timerMain() {
     last_state_estimation_info_ =
         parse_state_estimation_info(estimation_diagnostics.message, control_manager_heading.message, hw_api_gnss.message, hw_api_mag_heading.message);
 
-  if (control_manager_diagnostics.hasNewMessage || control_manager_thrust.hasNewMessage)
-    last_control_info_ = parse_control_info(control_manager_diagnostics.message, control_manager_thrust.message);
+  if (control_manager_diagnostics.hasNewMessage || control_manager_thrust.hasNewMessage || contstraint_manager_diagnostics.hasNewMessage ||
+      gain_manager_diagnostics.hasNewMessage)
+    last_control_info_ = parse_control_info(control_manager_diagnostics.message, contstraint_manager_diagnostics.message, gain_manager_diagnostics.message,
+                                            control_manager_thrust.message);
 
   if (mpc_tracker_diagnostics.hasNewMessage)
     last_collision_avoidance_info_ = parse_collision_avoidance_info(mpc_tracker_diagnostics.message);
@@ -668,13 +674,17 @@ mrs_msgs::msg::StateEstimationInfo StateMonitor::parse_state_estimation_info(mrs
   return msg;
 }
 
-mrs_msgs::msg::ControlInfo StateMonitor::parse_control_info(mrs_msgs::msg::ControlManagerDiagnostics::ConstSharedPtr control_manager_diagnostics,
-                                                            std_msgs::msg::Float64::ConstSharedPtr                   thrust) {
+mrs_msgs::msg::ControlInfo StateMonitor::parse_control_info(mrs_msgs::msg::ControlManagerDiagnostics::ConstSharedPtr    control_manager_diagnostics,
+                                                            mrs_msgs::msg::ConstraintManagerDiagnostics::ConstSharedPtr constraint_manager_diagnostics,
+                                                            mrs_msgs::msg::GainManagerDiagnostics::ConstSharedPtr       gain_manager_diagnostics,
+                                                            std_msgs::msg::Float64::ConstSharedPtr                      thrust) {
 
   mrs_msgs::msg::ControlInfo msg = init_control_info();
 
-  const bool is_control_manager_diagnostics_valid = control_manager_diagnostics != nullptr;
-  const bool is_thrust_valid                      = thrust != nullptr;
+  const bool is_control_manager_diagnostics_valid    = control_manager_diagnostics != nullptr;
+  const bool is_constraint_manager_diagnostics_valid = constraint_manager_diagnostics != nullptr;
+  const bool is_gain_manager_diagnostics_valid       = gain_manager_diagnostics != nullptr;
+  const bool is_thrust_valid                         = thrust != nullptr;
 
   if (is_control_manager_diagnostics_valid) {
     msg.active_controller     = control_manager_diagnostics->active_controller;
@@ -685,6 +695,16 @@ mrs_msgs::msg::ControlInfo StateMonitor::parse_control_info(mrs_msgs::msg::Contr
 
   if (is_thrust_valid)
     msg.thrust = thrust->data;
+
+  if (is_constraint_manager_diagnostics_valid) {
+    msg.active_constraints    = constraint_manager_diagnostics->current_name;
+    msg.available_constraints = constraint_manager_diagnostics->available;
+  }
+
+  if (is_gain_manager_diagnostics_valid) {
+    msg.active_gains    = gain_manager_diagnostics->current_name;
+    msg.available_gains = gain_manager_diagnostics->available;
+  }
 
   return msg;
 }

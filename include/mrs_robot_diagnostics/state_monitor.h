@@ -21,6 +21,7 @@
 #include <mrs_msgs/msg/errorgraph_element.hpp>
 #include <mrs_msgs/msg/errorgraph_element_array.hpp>
 #include <mrs_msgs/msg/control_manager_diagnostics.hpp>
+#include <mrs_msgs/msg/constraint_manager_diagnostics.hpp>
 #include <mrs_msgs/msg/gain_manager_diagnostics.hpp>
 #include <mrs_msgs/msg/uav_diagnostics.hpp>
 #include <mrs_msgs/msg/general_robot_info.hpp>
@@ -182,10 +183,12 @@ private:
   mrs_lib::SubscriberHandler<mrs_msgs::msg::HwApiRcRssi>           sh_hw_api_rc_rssi_;
 
   // | ----------------------- ControlInfo ---------------------- |
-  mrs_lib::PublisherHandler<mrs_msgs::msg::ControlInfo>                ph_control_info_;
-  mrs_msgs::msg::ControlInfo                                           last_control_info_;
-  mrs_lib::SubscriberHandler<mrs_msgs::msg::ControlManagerDiagnostics> sh_control_manager_diagnostics_;
-  mrs_lib::SubscriberHandler<std_msgs::msg::Float64>                   sh_control_manager_thrust_;
+  mrs_lib::PublisherHandler<mrs_msgs::msg::ControlInfo>                   ph_control_info_;
+  mrs_msgs::msg::ControlInfo                                              last_control_info_;
+  mrs_lib::SubscriberHandler<mrs_msgs::msg::ConstraintManagerDiagnostics> sh_constraint_manager_diagnostics_;
+  mrs_lib::SubscriberHandler<mrs_msgs::msg::ControlManagerDiagnostics>    sh_control_manager_diagnostics_;
+  mrs_lib::SubscriberHandler<mrs_msgs::msg::GainManagerDiagnostics>       sh_gain_manager_diagnostics_;
+  mrs_lib::SubscriberHandler<std_msgs::msg::Float64>                      sh_control_manager_thrust_;
 
   // | ----------------- CollisionAvoidanceInfo ----------------- |
   mrs_lib::PublisherHandler<mrs_msgs::msg::CollisionAvoidanceInfo> ph_collision_avoidance_info_;
@@ -305,8 +308,10 @@ private:
                                                                  mrs_msgs::msg::Float64Stamped::ConstSharedPtr        global_heading);
 
   /** @brief Build ControlInfo from control manager diagnostics and thrust. */
-  mrs_msgs::msg::ControlInfo parse_control_info(mrs_msgs::msg::ControlManagerDiagnostics::ConstSharedPtr control_manager_diagnostics,
-                                                std_msgs::msg::Float64::ConstSharedPtr                   thrust);
+  mrs_msgs::msg::ControlInfo parse_control_info(mrs_msgs::msg::ControlManagerDiagnostics::ConstSharedPtr    control_manager_diagnostics,
+                                                mrs_msgs::msg::ConstraintManagerDiagnostics::ConstSharedPtr contstraint_manager_diagnostics,
+                                                mrs_msgs::msg::GainManagerDiagnostics::ConstSharedPtr       gain_manager_diagnostics,
+                                                std_msgs::msg::Float64::ConstSharedPtr                      thrust);
 
   /** @brief Build CollisionAvoidanceInfo from MPC tracker diagnostics. */
   mrs_msgs::msg::CollisionAvoidanceInfo parse_collision_avoidance_info(mrs_msgs::msg::MpcTrackerDiagnostics::ConstSharedPtr mpc_tracker_diagnostics);

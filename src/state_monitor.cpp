@@ -205,6 +205,7 @@ void StateMonitor::initialize() {
   last_state_estimation_info_ = init_state_estimation_info();
   sh_estimation_diagnostics_  = mrs_lib::SubscriberHandler<mrs_msgs::msg::EstimationDiagnostics>(shopts, "~/estimation_diagnostics_in");
   sh_hw_api_gnss_             = mrs_lib::SubscriberHandler<sensor_msgs::msg::NavSatFix>(shopts, "~/hw_api_gnss_in");
+  sh_hw_api_gnss_status_      = mrs_lib::SubscriberHandler<mrs_msgs::msg::GpsInfo>(shopts, "~/hw_api_gnss_status_in");
   sh_control_manager_heading_ = mrs_lib::SubscriberHandler<mrs_msgs::msg::Float64Stamped>(shopts, "~/control_manager_heading_in");
   sh_hw_api_mag_heading_      = mrs_lib::SubscriberHandler<mrs_msgs::msg::Float64Stamped>(shopts, "~/hw_api_mag_heading_in");
   sh_hw_api_rc_rssi_          = mrs_lib::SubscriberHandler<mrs_msgs::msg::HwApiRcRssi>(shopts, "~/hw_api_rc_rssi_in");
@@ -296,6 +297,7 @@ void StateMonitor::timerMain() {
   const auto       gain_manager_diagnostics        = processIncomingMessage(sh_gain_manager_diagnostics_);
   const auto       estimation_diagnostics          = processIncomingMessage(sh_estimation_diagnostics_);
   const auto       hw_api_gnss                     = processIncomingMessage(sh_hw_api_gnss_);
+  const auto       hw_api_gnss_status              = processIncomingMessage(sh_hw_api_gnss_status_);
   const auto       hw_api_mag_heading              = processIncomingMessage(sh_hw_api_mag_heading_);
   const auto       hw_api_magnetic_field           = processIncomingMessage(sh_hw_api_magnetic_field_);
   const auto       hw_api_rc_rssi                  = processIncomingMessage(sh_hw_api_rc_rssi_);
@@ -327,8 +329,10 @@ void StateMonitor::timerMain() {
   if (hw_api_status.hasNewMessage || uav_status.hasNewMessage || mass_nominal.hasNewMessage | mass_estimate.hasNewMessage)
     last_uav_info_ = parse_uav_info(hw_api_status.message, uav_status.message, mass_nominal.message, mass_estimate.message);
 
-  if (uav_status.hasNewMessage || hw_api_gnss.hasNewMessage || hw_api_magnetic_field.hasNewMessage || hw_api_rc_rssi.hasNewMessage)
-    last_system_health_info_ = parse_system_health_info(uav_status.message, hw_api_gnss.message, hw_api_magnetic_field.message, hw_api_rc_rssi.message);
+  if (uav_status.hasNewMessage || hw_api_gnss.hasNewMessage || hw_api_magnetic_field.hasNewMessage || hw_api_rc_rssi.hasNewMessage ||
+      hw_api_gnss_status.hasNewMessage)
+    last_system_health_info_ =
+        parse_system_health_info(uav_status.message, hw_api_gnss.message, hw_api_gnss_status.message, hw_api_magnetic_field.message, hw_api_rc_rssi.message);
 
   ph_general_robot_info_.publish(last_general_robot_info_);
   ph_state_estimation_info_.publish(last_state_estimation_info_);
@@ -755,12 +759,14 @@ mrs_msgs::msg::UavInfo StateMonitor::parse_uav_info(mrs_msgs::msg::HwApiStatus::
 
 mrs_msgs::msg::SystemHealthInfo StateMonitor::parse_system_health_info(mrs_msgs::msg::UavStatus::ConstSharedPtr        uav_status,
                                                                        sensor_msgs::msg::NavSatFix::ConstSharedPtr     gnss,
+                                                                       mrs_msgs::msg::GpsInfo::ConstSharedPtr          gnss_status,
                                                                        sensor_msgs::msg::MagneticField::ConstSharedPtr magnetic_field,
                                                                        mrs_msgs::msg::HwApiRcRssi::ConstSharedPtr      rc_rssi) {
   mrs_msgs::msg::SystemHealthInfo msg = init_system_health_info();
 
   const bool is_uav_status_valid     = uav_status != nullptr;
   const bool is_gnss_valid           = gnss != nullptr;
+  const bool is_gnss_status_valid    = gnss_status != nullptr;
   const bool is_magnetic_field_valid = magnetic_field != nullptr;
 
   if (is_uav_status_valid) {
@@ -784,6 +790,11 @@ mrs_msgs::msg::SystemHealthInfo StateMonitor::parse_system_health_info(mrs_msgs:
   if (is_gnss_valid) {
     const Eigen::Matrix3d cov = cov2eigen(gnss->position_covariance);
     msg.gnss_uncertainty      = std::cbrt(cov.determinant());
+  }
+
+  if (is_gnss_status_valid) {
+    msg.gnss_num_satellites = gnss_status->satellites_visible;
+    msg.gnss_fix_type       = gnss_status->fix_type;
   }
 
   if (is_magnetic_field_valid) {

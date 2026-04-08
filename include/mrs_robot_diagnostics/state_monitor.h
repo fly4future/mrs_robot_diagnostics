@@ -17,27 +17,28 @@
 #include <rclcpp/rclcpp.hpp>
 #include <pluginlib/class_loader.hpp>
 
-#include <mrs_msgs/msg/estimation_diagnostics.hpp>
+#include <mrs_msgs/msg/collision_avoidance_info.hpp>
+#include <mrs_msgs/msg/constraint_manager_diagnostics.hpp>
+#include <mrs_msgs/msg/control_info.hpp>
+#include <mrs_msgs/msg/control_manager_diagnostics.hpp>
+#include <mrs_msgs/msg/cpu_load.hpp>
 #include <mrs_msgs/msg/errorgraph_element.hpp>
 #include <mrs_msgs/msg/errorgraph_element_array.hpp>
-#include <mrs_msgs/msg/control_manager_diagnostics.hpp>
-#include <mrs_msgs/msg/constraint_manager_diagnostics.hpp>
+#include <mrs_msgs/msg/estimation_diagnostics.hpp>
+#include <mrs_msgs/msg/float64_stamped.hpp>
 #include <mrs_msgs/msg/gain_manager_diagnostics.hpp>
-#include <mrs_msgs/msg/uav_diagnostics.hpp>
 #include <mrs_msgs/msg/general_robot_info.hpp>
-#include <mrs_msgs/msg/state_estimation_info.hpp>
-#include <mrs_msgs/msg/control_info.hpp>
-#include <mrs_msgs/msg/collision_avoidance_info.hpp>
-#include <mrs_msgs/msg/uav_info.hpp>
-#include <mrs_msgs/msg/uav_state.hpp>
-#include <mrs_msgs/msg/system_health_info.hpp>
-#include <mrs_msgs/msg/hw_api_status.hpp>
+#include <mrs_msgs/msg/gps_info.hpp>
 #include <mrs_msgs/msg/hw_api_rc_rssi.hpp>
-#include <mrs_msgs/msg/uav_status.hpp>
+#include <mrs_msgs/msg/hw_api_status.hpp>
 #include <mrs_msgs/msg/mpc_tracker_diagnostics.hpp>
 #include <mrs_msgs/msg/sensor_status.hpp>
-#include <mrs_msgs/msg/float64_stamped.hpp>
-#include <mrs_msgs/msg/cpu_load.hpp>
+#include <mrs_msgs/msg/state_estimation_info.hpp>
+#include <mrs_msgs/msg/system_health_info.hpp>
+#include <mrs_msgs/msg/uav_diagnostics.hpp>
+#include <mrs_msgs/msg/uav_info.hpp>
+#include <mrs_msgs/msg/uav_state.hpp>
+#include <mrs_msgs/msg/uav_status.hpp>
 #include <std_msgs/msg/float64.hpp>
 
 #include <std_msgs/msg/bool.hpp>
@@ -45,21 +46,21 @@
 #include <sensor_msgs/msg/nav_sat_fix.hpp>
 #include <sensor_msgs/msg/magnetic_field.hpp>
 
-#include <mrs_lib/node.h>
 #include <mrs_lib/errorgraph/errorgraph.h>
-#include <mrs_lib/profiler.h>
-#include <mrs_lib/scope_timer.h>
-#include <mrs_lib/param_loader.h>
 #include <mrs_lib/mutex.h>
+#include <mrs_lib/node.h>
+#include <mrs_lib/param_loader.h>
+#include <mrs_lib/profiler.h>
 #include <mrs_lib/publisher_handler.h>
+#include <mrs_lib/scope_timer.h>
 #include <mrs_lib/service_client_handler.h>
 #include <mrs_lib/service_server_handler.h>
 #include <mrs_lib/subscriber_handler.h>
 
-#include <mrs_robot_diagnostics/enums/uav_state.h>
-#include <mrs_robot_diagnostics/enums/tracker_state.h>
-#include <mrs_robot_diagnostics/enums/robot_type.h>
 #include <mrs_robot_diagnostics/enums/enum_helpers.h>
+#include <mrs_robot_diagnostics/enums/robot_type.h>
+#include <mrs_robot_diagnostics/enums/tracker_state.h>
+#include <mrs_robot_diagnostics/enums/uav_state.h>
 
 #include <mrs_robot_diagnostics/sensor_handler.h>
 
@@ -178,6 +179,7 @@ private:
   mrs_msgs::msg::StateEstimationInfo                               last_state_estimation_info_;
   mrs_lib::SubscriberHandler<mrs_msgs::msg::EstimationDiagnostics> sh_estimation_diagnostics_;
   mrs_lib::SubscriberHandler<sensor_msgs::msg::NavSatFix>          sh_hw_api_gnss_;
+  mrs_lib::SubscriberHandler<mrs_msgs::msg::GpsInfo>               sh_hw_api_gnss_status_;
   mrs_lib::SubscriberHandler<mrs_msgs::msg::Float64Stamped>        sh_control_manager_heading_;
   mrs_lib::SubscriberHandler<mrs_msgs::msg::Float64Stamped>        sh_hw_api_mag_heading_;
   mrs_lib::SubscriberHandler<mrs_msgs::msg::HwApiRcRssi>           sh_hw_api_rc_rssi_;
@@ -321,8 +323,8 @@ private:
                                         std_msgs::msg::Float64::ConstSharedPtr mass_nominal, std_msgs::msg::Float64::ConstSharedPtr mass_estimate);
 
   /** @brief Build SystemHealthInfo from UAV status, GNSS, magnetometer, RC RSSI, and WiFi. */
-  mrs_msgs::msg::SystemHealthInfo parse_system_health_info(mrs_msgs::msg::UavStatus::ConstSharedPtr        uav_status,
-                                                           sensor_msgs::msg::NavSatFix::ConstSharedPtr     gnss,
+  mrs_msgs::msg::SystemHealthInfo parse_system_health_info(mrs_msgs::msg::UavStatus::ConstSharedPtr    uav_status,
+                                                           sensor_msgs::msg::NavSatFix::ConstSharedPtr gnss, mrs_msgs::msg::GpsInfo::ConstSharedPtr gnss_status,
                                                            sensor_msgs::msg::MagneticField::ConstSharedPtr magnetic_field,
                                                            mrs_msgs::msg::HwApiRcRssi::ConstSharedPtr      rc_rssi);
 

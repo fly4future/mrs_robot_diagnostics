@@ -35,7 +35,7 @@ robot_diagnostics:
        topic: "hw_api/status" # Don't add the leading slash, the name will be resolved relative to the node's namespace 
        message_type: "mrs_msgs/msg/HwApiStatus"
        qos_reliability: "reliable"              # QoS reliability setting (default: "reliable")
-       # expected_rate: 100.0                     # Hz
+       expected_rate: 100.0                     # Hz
        rate_tolerance: 0.3                      # 30% deviation allowed (default)
 
     Rangefinder:

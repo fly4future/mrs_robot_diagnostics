@@ -54,6 +54,13 @@ bool GenericSensorHandler::initialize(rclcpp::Node::SharedPtr &node, const std::
   std::string qos_reliability;
   param_loader.loadParam(generic_handler_key + "/qos_reliability", qos_reliability, std::string("reliable"));
 
+  if (param_loader.loadedSuccessfully()) {
+    RCLCPP_INFO(node->get_logger(), "[GenericSensorHandler] Successfully loaded config for topic '%s'", topic.c_str());
+  } else {
+    RCLCPP_ERROR(node->get_logger(), "[GenericSensorHandler] Failed to load config for generic handler '%s', not initializing", generic_handler_key.c_str()); 
+    return false;
+  }
+
   sensor_type_uint_ = mapSensorType(sensor_type_str);
 
   // Create QoS profile based on config
@@ -195,7 +202,7 @@ uint8_t GenericSensorHandler::mapSensorType(const std::string &type_str) {
   }
 
   RCLCPP_WARN(rclcpp::get_logger("GenericSensorHandler"), "Unknown sensor type '%s', defaulting to TYPE_AUTOPILOT (0)", type_str.c_str());
-  return 0;
+  return mrs_msgs::msg::SensorStatus::TYPE_AUTOPILOT; 
 }
 
 } // namespace generic_handler

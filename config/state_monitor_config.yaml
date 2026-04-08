@@ -10,7 +10,8 @@ robot_diagnostics:
     # the list of sensors to monitor
     sensor_handler_names: [
       # Example sensor handlers
-      "PX4_SIM",
+      "PX4",
+      "Rangefinder",
       # "LidarHandler",
       # "IMUHandler",
       # "GPSHandler",
@@ -27,12 +28,22 @@ robot_diagnostics:
       address: "mrs_robot_diagnostics/CameraHandler"
       topic: "/servo_camera/"
 
-    PX4_SIM:
-       name: "PX4 Simulation"
+    PX4:
+       name: "PX4"
        type: "Autopilot"
        address: "mrs_robot_diagnostics/GenericSensorHandler"
        topic: "hw_api/status" # Don't add the leading slash, the name will be resolved relative to the node's namespace 
        message_type: "mrs_msgs/msg/HwApiStatus"
        qos_reliability: "reliable"              # QoS reliability setting (default: "reliable")
-       expected_rate: 100.0                      # Hz
+       expected_rate: 100.0                     # Hz
+       rate_tolerance: 0.3                      # 30% deviation allowed (default)
+
+    Rangefinder:
+       name: "Rangefinder"
+       type: "Rangefinder"
+       address: "mrs_robot_diagnostics/GenericSensorHandler"
+       topic: "hw_api/distance_sensor" # Don't add the leading slash, the name will be resolved relative to the node's namespace 
+       message_type: "sensor_msgs/msg/Range"
+       qos_reliability: "reliable"              # QoS reliability setting (default: "reliable")
+       expected_rate: 100.0                     # Hz
        rate_tolerance: 0.3                      # 30% deviation allowed (default)

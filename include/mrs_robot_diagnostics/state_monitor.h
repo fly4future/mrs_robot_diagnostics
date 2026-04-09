@@ -330,18 +330,8 @@ private:
 
   // | ------------------- Init methods ------------------------- |
 
-  /** @brief Create a default-initialized GeneralRobotInfo message. */
-  mrs_msgs::msg::GeneralRobotInfo init_general_robot_info();
-  /** @brief Create a default-initialized StateEstimationInfo message (NaN-filled). */
+  /** @brief Create a default-initialized StateEstimationInfo message (NaN-filled for nested types). */
   mrs_msgs::msg::StateEstimationInfo init_state_estimation_info();
-  /** @brief Create a default-initialized ControlInfo message. */
-  mrs_msgs::msg::ControlInfo init_control_info();
-  /** @brief Create a default-initialized CollisionAvoidanceInfo message. */
-  mrs_msgs::msg::CollisionAvoidanceInfo init_collision_avoidance_info();
-  /** @brief Create a default-initialized UavInfo message. */
-  mrs_msgs::msg::UavInfo init_uav_info();
-  /** @brief Create a default-initialized SystemHealthInfo message (NaN/-1 filled). */
-  mrs_msgs::msg::SystemHealthInfo init_system_health_info();
 };
 
 /**

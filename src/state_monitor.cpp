@@ -169,7 +169,7 @@ void StateMonitor::initialize() {
   mrs_msgs::msg::SensorStatus ss_msg;
   ss_msg.ready  = true;
   ss_msg.rate   = -1;
-  ss_msg.status = "NOT_IMPLEMENTED";
+  // ss_msg.status = "NOT_IMPLEMENTED";
 
   std::vector<std::string> components = extractComponents(available_sensors_string);
   RCLCPP_INFO(node_->get_logger(), "components size: %zu", components.size());
@@ -327,7 +327,7 @@ void StateMonitor::timerMain() {
   if (uav_status.hasNewMessage || hw_api_gnss.hasNewMessage || hw_api_magnetic_field.hasNewMessage || hw_api_rc_rssi.hasNewMessage ||
       hw_api_gnss_status.hasNewMessage)
     last_system_health_info_ =
-        parse_system_health_info(uav_status.message, hw_api_gnss.message, hw_api_gnss_status.message, hw_api_magnetic_field.message, hw_api_rc_rssi.message);
+        parse_system_health_info(uav_status.message, hw_api_magnetic_field.message, hw_api_rc_rssi.message);
 
   ph_general_robot_info_.publish(last_general_robot_info_);
   ph_state_estimation_info_.publish(last_state_estimation_info_);
@@ -744,15 +744,11 @@ mrs_msgs::msg::UavInfo StateMonitor::parse_uav_info(mrs_msgs::msg::HwApiStatus::
 }
 
 mrs_msgs::msg::SystemHealthInfo StateMonitor::parse_system_health_info(mrs_msgs::msg::UavStatus::ConstSharedPtr        uav_status,
-                                                                       sensor_msgs::msg::NavSatFix::ConstSharedPtr     gnss,
-                                                                       mrs_msgs::msg::GpsInfo::ConstSharedPtr          gnss_status,
                                                                        sensor_msgs::msg::MagneticField::ConstSharedPtr magnetic_field,
                                                                        mrs_msgs::msg::HwApiRcRssi::ConstSharedPtr      rc_rssi) {
   mrs_msgs::msg::SystemHealthInfo msg;
 
   const bool is_uav_status_valid     = uav_status != nullptr;
-  const bool is_gnss_valid           = gnss != nullptr;
-  const bool is_gnss_status_valid    = gnss_status != nullptr;
   const bool is_magnetic_field_valid = magnetic_field != nullptr;
 
   if (is_uav_status_valid) {
@@ -771,16 +767,6 @@ mrs_msgs::msg::SystemHealthInfo StateMonitor::parse_system_health_info(mrs_msgs:
     msg.hw_api_rate           = uav_status->hw_api_hz;
     msg.control_manager_rate  = uav_status->control_manager_diag_hz;
     msg.state_estimation_rate = uav_status->odom_hz;
-  }
-
-  if (is_gnss_valid) {
-    const Eigen::Matrix3d cov = cov2eigen(gnss->position_covariance);
-    msg.gnss_uncertainty      = std::cbrt(cov.determinant());
-  }
-
-  if (is_gnss_status_valid) {
-    msg.gnss_num_satellites = gnss_status->satellites_visible;
-    msg.gnss_fix_type       = gnss_status->fix_type;
   }
 
   if (is_magnetic_field_valid) {

@@ -311,7 +311,7 @@ private:
 
   /** @brief Build ControlInfo from control manager diagnostics and thrust. */
   mrs_msgs::msg::ControlInfo parse_control_info(mrs_msgs::msg::ControlManagerDiagnostics::ConstSharedPtr    control_manager_diagnostics,
-                                                mrs_msgs::msg::ConstraintManagerDiagnostics::ConstSharedPtr contstraint_manager_diagnostics,
+                                                mrs_msgs::msg::ConstraintManagerDiagnostics::ConstSharedPtr constraint_manager_diagnostics,
                                                 mrs_msgs::msg::GainManagerDiagnostics::ConstSharedPtr       gain_manager_diagnostics,
                                                 std_msgs::msg::Float64::ConstSharedPtr                      thrust);
 

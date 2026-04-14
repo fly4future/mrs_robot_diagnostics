@@ -288,7 +288,7 @@ void StateMonitor::timerMain() {
   const auto       control_manager_diagnostics     = processIncomingMessage(sh_control_manager_diagnostics_);
   const auto       control_manager_heading         = processIncomingMessage(sh_control_manager_heading_);
   const auto       control_manager_thrust          = processIncomingMessage(sh_control_manager_thrust_);
-  const auto       contstraint_manager_diagnostics = processIncomingMessage(sh_constraint_manager_diagnostics_);
+  const auto       constraint_manager_diagnostics = processIncomingMessage(sh_constraint_manager_diagnostics_);
   const auto       gain_manager_diagnostics        = processIncomingMessage(sh_gain_manager_diagnostics_);
   const auto       estimation_diagnostics          = processIncomingMessage(sh_estimation_diagnostics_);
   const auto       hw_api_gnss                     = processIncomingMessage(sh_hw_api_gnss_);
@@ -313,15 +313,15 @@ void StateMonitor::timerMain() {
     last_state_estimation_info_ =
         parse_state_estimation_info(estimation_diagnostics.message, control_manager_heading.message, hw_api_gnss.message, hw_api_mag_heading.message);
 
-  if (control_manager_diagnostics.hasNewMessage || control_manager_thrust.hasNewMessage || contstraint_manager_diagnostics.hasNewMessage ||
+  if (control_manager_diagnostics.hasNewMessage || control_manager_thrust.hasNewMessage || constraint_manager_diagnostics.hasNewMessage ||
       gain_manager_diagnostics.hasNewMessage)
-    last_control_info_ = parse_control_info(control_manager_diagnostics.message, contstraint_manager_diagnostics.message, gain_manager_diagnostics.message,
+    last_control_info_ = parse_control_info(control_manager_diagnostics.message, constraint_manager_diagnostics.message, gain_manager_diagnostics.message,
                                             control_manager_thrust.message);
 
   if (mpc_tracker_diagnostics.hasNewMessage)
     last_collision_avoidance_info_ = parse_collision_avoidance_info(mpc_tracker_diagnostics.message);
 
-  if (hw_api_status.hasNewMessage || uav_status.hasNewMessage || mass_nominal.hasNewMessage | mass_estimate.hasNewMessage)
+  if (hw_api_status.hasNewMessage || uav_status.hasNewMessage || mass_nominal.hasNewMessage || mass_estimate.hasNewMessage)
     last_uav_info_ = parse_uav_info(hw_api_status.message, uav_status.message, mass_nominal.message, mass_estimate.message);
 
   if (uav_status.hasNewMessage || hw_api_gnss.hasNewMessage || hw_api_magnetic_field.hasNewMessage || hw_api_rc_rssi.hasNewMessage ||

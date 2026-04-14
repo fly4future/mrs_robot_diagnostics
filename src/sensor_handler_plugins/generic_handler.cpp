@@ -1,17 +1,12 @@
 #include <mrs_robot_diagnostics/sensor_plugins/generic_handler.h>
 
-#include <unordered_map>
-
 namespace mrs_robot_diagnostics
 {
 namespace generic_handler
 {
 
-bool GenericSensorHandler::initialize(rclcpp::Node::SharedPtr &node, const std::string &name, const std::string &name_space, const std::string &topic,
-                                      rclcpp::CallbackGroup::SharedPtr cbkgrp_subs) {
-
-  name_  = name;
-  topic_ = topic;
+bool GenericSensorHandler::onInitialize(rclcpp::Node::SharedPtr &node, const std::string &name, const std::string &name_space, const std::string &topic,
+                                        rclcpp::CallbackGroup::SharedPtr cbkgrp_subs) {
 
   mrs_lib::ParamLoader param_loader(node, "GenericSensorHandler");
 
@@ -24,73 +19,33 @@ bool GenericSensorHandler::initialize(rclcpp::Node::SharedPtr &node, const std::
   param_loader.addYamlFileFromParam("config");
   param_loader.setPrefix("robot_diagnostics/sensor_handlers/");
 
-  // Find config block by matching topic
-  std::vector<std::string> handler_names;
-  param_loader.loadParam("sensor_handler_names", handler_names);
-
-  std::string generic_handler_key;
-  for (const auto &key : handler_names) {
-    std::string key_topic;
-    param_loader.loadParam(key + "/topic", key_topic, std::string(""));
-    if (key_topic == topic) {
-      generic_handler_key = key;
-      break;
-    }
-  }
-
-  if (generic_handler_key.empty()) {
-    RCLCPP_ERROR(node->get_logger(), "[GenericSensorHandler] Could not find config block matching topic '%s'", topic.c_str());
-    return false;
-  }
-
   // Read GenericSensorHandler-specific params
   std::string message_type;
-  std::string sensor_type_str;
-  param_loader.loadParam(generic_handler_key + "/message_type", message_type);
-  param_loader.loadParam(generic_handler_key + "/expected_rate", expected_rate_);
-  param_loader.loadParam(generic_handler_key + "/rate_tolerance", rate_tolerance_, 0.3);
-  param_loader.loadParam(generic_handler_key + "/type", sensor_type_str);
-
-  std::string qos_reliability;
-  param_loader.loadParam(generic_handler_key + "/qos_reliability", qos_reliability, std::string("reliable"));
+  param_loader.loadParam(name + "/message_type", message_type);
 
   if (param_loader.loadedSuccessfully()) {
     RCLCPP_INFO(node->get_logger(), "[GenericSensorHandler] Successfully loaded config for topic '%s'", topic.c_str());
   } else {
-    RCLCPP_ERROR(node->get_logger(), "[GenericSensorHandler] Failed to load config for generic handler '%s', not initializing", generic_handler_key.c_str()); 
+    RCLCPP_ERROR(node->get_logger(), "[GenericSensorHandler] Failed to load config for generic handler '%s', not initializing", name.c_str());
+    error_publisher_->addOneshotError("Failed to load config for generic sensor handler " + name_);
     return false;
   }
-
-  sensor_type_uint_ = mapSensorType(sensor_type_str);
-
-  // Create QoS profile based on config
-  rclcpp::QoS qos_profile(10);
-  if (qos_reliability == "best_effort") {
-    qos_profile.best_effort();
-  } else {
-    qos_profile.reliable();
-  }
-  qos_profile.durability_volatile();
 
   // Create the generic subscription
   rclcpp::SubscriptionOptions sub_options;
   sub_options.callback_group = cbkgrp_subs;
 
   generic_sub_ = node->create_generic_subscription(
-      topic, message_type, qos_profile, [this](std::shared_ptr<const rclcpp::SerializedMessage> msg) { this->messageCallback(msg); }, sub_options);
+      topic, message_type, qos_profile_, [this](std::shared_ptr<const rclcpp::SerializedMessage> msg) { this->messageCallback(msg); }, sub_options);
 
-  // Initialize timing
-  init_time_          = rclcpp::Clock(RCL_STEADY_TIME).now();
-  last_msg_wall_time_ = rclcpp::Time(0, 0, RCL_STEADY_TIME);
 
   RCLCPP_INFO(node->get_logger(), "[GenericSensorHandler] '%s' initialized: topic='%s', msg_type='%s', expected_rate=%.1f Hz, tolerance=%.0f%%", name_.c_str(),
               topic.c_str(), message_type.c_str(), expected_rate_, rate_tolerance_ * 100.0);
 
-  is_initialized_ = true;
   return true;
 }
 
-void GenericSensorHandler::messageCallback(const std::shared_ptr<const rclcpp::SerializedMessage> & /*msg*/) {
+void GenericSensorHandler::messageCallback([[maybe_unused]] const std::shared_ptr<const rclcpp::SerializedMessage> &msg) {
   std::scoped_lock lock(mutex_timestamps_);
 
   rclcpp::Time now = rclcpp::Clock(RCL_STEADY_TIME).now();
@@ -102,107 +57,9 @@ void GenericSensorHandler::messageCallback(const std::shared_ptr<const rclcpp::S
 
   msg_count_++;
   last_msg_wall_time_ = now;
-  measured_rate_      = calculateWindowedRate();
-}
 
-double GenericSensorHandler::calculateWindowedRate() {
-  // Called with mutex_timestamps_ already locked
-  if (msg_timestamps_.size() < 2) {
-    return -1.0;
-  }
-
-  double dt = (msg_timestamps_.back() - msg_timestamps_.front()).seconds();
-  if (dt <= 0.0) {
-    return -1.0;
-  }
-
-  return static_cast<double>(msg_timestamps_.size() - 1) / dt;
-}
-
-mrs_msgs::msg::SensorStatus GenericSensorHandler::updateStatus() {
-  mrs_msgs::msg::SensorStatus ss;
-  ss.name  = name_;
-  ss.type  = sensor_type_uint_;
-  ss.topic = topic_;
-
-  if (!is_initialized_) {
-    ss.ready  = false;
-    ss.rate   = -1.0;
-    ss.status = "NOT_INITIALIZED";
-    return ss;
-  }
-
-  std::scoped_lock lock(mutex_timestamps_);
-
-  rclcpp::Time now                = rclcpp::Clock(RCL_STEADY_TIME).now();
-  double       elapsed_since_init = (now - init_time_).seconds();
-
-  // Grace period — don't report rate errors right after startup
-  if (elapsed_since_init < GRACE_PERIOD_S) {
-    ss.ready  = false;
-    ss.rate   = measured_rate_;
-    ss.status = "INITIALIZING";
-    return ss;
-  }
-
-  // No messages ever received
-  if (msg_count_ == 0) {
-    ss.ready  = false;
-    ss.rate   = 0.0;
-    ss.status = "NO_DATA";
-    return ss;
-  }
-
-  // Topic gone silent — no message for 3x the expected period
-  double time_since_last = (now - last_msg_wall_time_).seconds();
-  double expected_period = 1.0 / expected_rate_;
-
-  if (time_since_last > expected_period * 3.0) {
-    ss.ready  = false;
-    ss.rate   = 0.0;
-    ss.status = "TIMEOUT";
-    return ss;
-  }
-
-  // Rate comparison
-  ss.rate = measured_rate_;
-
-  double lower_bound = expected_rate_ * (1.0 - rate_tolerance_);
-  double upper_bound = expected_rate_ * (1.0 + rate_tolerance_);
-
-  if (measured_rate_ >= lower_bound && measured_rate_ <= upper_bound) {
-    ss.ready  = true;
-    ss.status = "OK";
-  } else if (measured_rate_ < lower_bound) {
-    ss.ready  = false;
-    ss.status = "RATE_TOO_LOW";
-  } else {
-    ss.ready  = true;
-    ss.status = "RATE_TOO_HIGH";
-  }
-
-  return ss;
-}
-
-uint8_t GenericSensorHandler::mapSensorType(const std::string &type_str) {
-  static const std::unordered_map<std::string, uint8_t> type_map = {
-      {"Autopilot", mrs_msgs::msg::SensorStatus::TYPE_AUTOPILOT},
-      {"Rangefinder", mrs_msgs::msg::SensorStatus::TYPE_RANGEFINDER},
-      {"GPS", mrs_msgs::msg::SensorStatus::TYPE_GPS},
-      {"IMU", mrs_msgs::msg::SensorStatus::TYPE_IMU},
-      {"Barometer", mrs_msgs::msg::SensorStatus::TYPE_BAROMETER},
-      {"Magnetometer", mrs_msgs::msg::SensorStatus::TYPE_MAGNETOMETER},
-      {"Lidar", mrs_msgs::msg::SensorStatus::TYPE_LIDAR},
-      {"Camera", mrs_msgs::msg::SensorStatus::TYPE_CAMERA},
-  };
-
-  auto it = type_map.find(type_str);
-  if (it != type_map.end()) {
-    return it->second;
-  }
-
-  RCLCPP_WARN(rclcpp::get_logger("GenericSensorHandler"), "Unknown sensor type '%s', defaulting to TYPE_AUTOPILOT (0)", type_str.c_str());
-  return mrs_msgs::msg::SensorStatus::TYPE_AUTOPILOT; 
+  std::deque<rclcpp::Time> timestamps_copy = msg_timestamps_;
+  measured_rate_                           = calculateRate(timestamps_copy);
 }
 
 } // namespace generic_handler

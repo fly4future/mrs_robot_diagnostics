@@ -14,7 +14,7 @@ robot_diagnostics:
       "Rangefinder",
       # "LidarHandler",
       # "IMUHandler",
-      # "GPSHandler",
+      "GPS",
       # "BatteryHandler",
       # "BarometerHandler",
       # "MagnetometerHandler",
@@ -46,4 +46,13 @@ robot_diagnostics:
        message_type: "sensor_msgs/msg/Range"
        qos_reliability: "reliable"              # QoS reliability setting (default: "reliable")
        expected_rate: 100.0                     # Hz
+       rate_tolerance: 0.3                      # 30% deviation allowed (default)
+
+    GPS:
+       name: "GPS"
+       type: "GPS" # Autopilot, Camera, Lidar, IMU, GPS, Battery, Barometer, Magnetometer, RangeFinder
+       address: "mrs_robot_diagnostics/GPSHandler"
+       topic: "hw_api/gnss" # Don't add the leading slash, the name will be resolved relative to the node's namespace 
+       qos_reliability: "reliable"             # QoS reliability setting (default: "reliable")
+       expected_rate: 50.0                     # Hz
        rate_tolerance: 0.3                      # 30% deviation allowed (default)

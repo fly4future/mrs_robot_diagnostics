@@ -18,7 +18,6 @@
 #include <pluginlib/class_loader.hpp>
 
 #include <mrs_msgs/msg/collision_avoidance_info.hpp>
-#include <mrs_msgs/msg/constraint_manager_diagnostics.hpp>
 #include <mrs_msgs/msg/control_info.hpp>
 #include <mrs_msgs/msg/control_manager_diagnostics.hpp>
 #include <mrs_msgs/msg/cpu_load.hpp>

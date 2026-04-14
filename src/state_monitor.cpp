@@ -167,8 +167,8 @@ void StateMonitor::initialize() {
   }
 
   mrs_msgs::msg::SensorStatus ss_msg;
-  ss_msg.ready  = true;
-  ss_msg.rate   = -1;
+  ss_msg.ready = true;
+  ss_msg.rate  = -1;
   // ss_msg.status = "NOT_IMPLEMENTED";
 
   std::vector<std::string> components = extractComponents(available_sensors_string);
@@ -283,24 +283,24 @@ void StateMonitor::timerMain() {
     return;
   }
   std::scoped_lock lck(uav_state_mutex_);
-  const auto       now                             = clock_->now();
-  const auto       battery_state                   = processIncomingMessage(sh_battery_state_);
-  const auto       control_manager_diagnostics     = processIncomingMessage(sh_control_manager_diagnostics_);
-  const auto       control_manager_heading         = processIncomingMessage(sh_control_manager_heading_);
-  const auto       control_manager_thrust          = processIncomingMessage(sh_control_manager_thrust_);
+  const auto       now                            = clock_->now();
+  const auto       battery_state                  = processIncomingMessage(sh_battery_state_);
+  const auto       control_manager_diagnostics    = processIncomingMessage(sh_control_manager_diagnostics_);
+  const auto       control_manager_heading        = processIncomingMessage(sh_control_manager_heading_);
+  const auto       control_manager_thrust         = processIncomingMessage(sh_control_manager_thrust_);
   const auto       constraint_manager_diagnostics = processIncomingMessage(sh_constraint_manager_diagnostics_);
-  const auto       gain_manager_diagnostics        = processIncomingMessage(sh_gain_manager_diagnostics_);
-  const auto       estimation_diagnostics          = processIncomingMessage(sh_estimation_diagnostics_);
-  const auto       hw_api_gnss                     = processIncomingMessage(sh_hw_api_gnss_);
-  const auto       hw_api_gnss_status              = processIncomingMessage(sh_hw_api_gnss_status_);
-  const auto       hw_api_mag_heading              = processIncomingMessage(sh_hw_api_mag_heading_);
-  const auto       hw_api_magnetic_field           = processIncomingMessage(sh_hw_api_magnetic_field_);
-  const auto       hw_api_rc_rssi                  = processIncomingMessage(sh_hw_api_rc_rssi_);
-  const auto       hw_api_status                   = processIncomingMessage(sh_hw_api_status_);
-  const auto       mass_estimate                   = processIncomingMessage(sh_mass_estimate_);
-  const auto       mass_nominal                    = processIncomingMessage(sh_mass_nominal_);
-  const auto       mpc_tracker_diagnostics         = processIncomingMessage(sh_mpc_tracker_diagnostics_);
-  const auto       uav_status                      = processIncomingMessage(sh_uav_status_);
+  const auto       gain_manager_diagnostics       = processIncomingMessage(sh_gain_manager_diagnostics_);
+  const auto       estimation_diagnostics         = processIncomingMessage(sh_estimation_diagnostics_);
+  const auto       hw_api_gnss                    = processIncomingMessage(sh_hw_api_gnss_);
+  const auto       hw_api_gnss_status             = processIncomingMessage(sh_hw_api_gnss_status_);
+  const auto       hw_api_mag_heading             = processIncomingMessage(sh_hw_api_mag_heading_);
+  const auto       hw_api_magnetic_field          = processIncomingMessage(sh_hw_api_magnetic_field_);
+  const auto       hw_api_rc_rssi                 = processIncomingMessage(sh_hw_api_rc_rssi_);
+  const auto       hw_api_status                  = processIncomingMessage(sh_hw_api_status_);
+  const auto       mass_estimate                  = processIncomingMessage(sh_mass_estimate_);
+  const auto       mass_nominal                   = processIncomingMessage(sh_mass_nominal_);
+  const auto       mpc_tracker_diagnostics        = processIncomingMessage(sh_mpc_tracker_diagnostics_);
+  const auto       uav_status                     = processIncomingMessage(sh_uav_status_);
 
   if (hw_api_status.hasNewMessage || control_manager_diagnostics.hasNewMessage) {
     const auto new_state = parse_uav_state(hw_api_status.message, control_manager_diagnostics.message);
@@ -326,8 +326,7 @@ void StateMonitor::timerMain() {
 
   if (uav_status.hasNewMessage || hw_api_gnss.hasNewMessage || hw_api_magnetic_field.hasNewMessage || hw_api_rc_rssi.hasNewMessage ||
       hw_api_gnss_status.hasNewMessage)
-    last_system_health_info_ =
-        parse_system_health_info(uav_status.message, hw_api_magnetic_field.message, hw_api_rc_rssi.message);
+    last_system_health_info_ = parse_system_health_info(uav_status.message, hw_api_magnetic_field.message, hw_api_rc_rssi.message);
 
   ph_general_robot_info_.publish(last_general_robot_info_);
   ph_state_estimation_info_.publish(last_state_estimation_info_);

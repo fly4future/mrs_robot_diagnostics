@@ -1,9 +1,8 @@
 #pragma once
 
-#include <mrs_lib/param_loader.h>
-#include <mrs_msgs/msg/gps_info.hpp>
 #include <mrs_robot_diagnostics/sensor_handler.h>
 #include <sensor_msgs/msg/nav_sat_fix.hpp>
+#include <mrs_msgs/msg/gps_info.hpp>
 
 namespace mrs_robot_diagnostics
 {

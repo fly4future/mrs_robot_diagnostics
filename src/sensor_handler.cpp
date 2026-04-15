@@ -5,7 +5,9 @@ namespace mrs_robot_diagnostics
 
 bool SensorHandler::initialize(rclcpp::Node::SharedPtr &node, const std::string &name, const std::string &name_space, const std::string &topic,
                                rclcpp::CallbackGroup::SharedPtr cbkgrp_subs) {
-  name_  = name;
+  name_ = name;
+  // Sanitize name for parameter loading and error reporting (replace spaces with underscores) 
+  std::replace(name_.begin(), name_.end(), ' ', '_');
   topic_ = topic;
 
   std::string handler_instance = name + " handler (" + topic + ")";
@@ -23,9 +25,9 @@ bool SensorHandler::initialize(rclcpp::Node::SharedPtr &node, const std::string 
   param_loader.setPrefix("robot_diagnostics/sensor_handlers/");
 
   std::string sensor_type_str;
+  param_loader.loadParam(name + "/type", sensor_type_str);
   param_loader.loadParam(name + "/expected_rate", expected_rate_);
   param_loader.loadParam(name + "/rate_tolerance", rate_tolerance_, 0.3);
-  param_loader.loadParam(name + "/type", sensor_type_str);
 
   std::string qos_reliability;
   param_loader.loadParam(name + "/qos_reliability", qos_reliability, std::string("reliable"));
@@ -70,6 +72,7 @@ mrs_msgs::msg::SensorStatus SensorHandler::updateStatus() {
     ss.message = "Not initialized";
     ss.level   = mrs_msgs::msg::SensorStatus::ERROR;
     error_publisher_->addGeneralError(error_type_t::not_initialized, "Sensor handler " + name_ + " is not initialized");
+    ss.details = fill_details();
     return ss;
   }
 
@@ -84,6 +87,7 @@ mrs_msgs::msg::SensorStatus SensorHandler::updateStatus() {
     ss.rate    = measured_rate_;
     ss.message = "Initializing (grace period)";
     ss.level   = mrs_msgs::msg::SensorStatus::STALE;
+    ss.details = fill_details();
     return ss;
   }
 
@@ -94,6 +98,7 @@ mrs_msgs::msg::SensorStatus SensorHandler::updateStatus() {
     ss.message = "No messages received yet";
     ss.level   = mrs_msgs::msg::SensorStatus::ERROR;
     error_publisher_->addGeneralError(error_type_t::no_messages_received, "No messages received on topic " + topic_ + " since startup");
+    ss.details = fill_details();
     return ss;
   }
 
@@ -108,6 +113,9 @@ mrs_msgs::msg::SensorStatus SensorHandler::updateStatus() {
     ss.level   = mrs_msgs::msg::SensorStatus::ERROR;
     error_publisher_->addGeneralError(error_type_t::no_messages_received,
                                       "No messages received on topic " + topic_ + " for " + std::to_string(time_since_last) + " seconds");
+
+
+    ss.details = fill_details();
     return ss;
   }
 

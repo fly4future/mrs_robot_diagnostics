@@ -325,7 +325,6 @@ private:
 
   /** @brief Build SystemHealthInfo from UAV status, GNSS, magnetometer, RC RSSI, and WiFi. */
   mrs_msgs::msg::SystemHealthInfo parse_system_health_info(mrs_msgs::msg::UavStatus::ConstSharedPtr        uav_status,
-                                                           sensor_msgs::msg::MagneticField::ConstSharedPtr magnetic_field,
                                                            mrs_msgs::msg::HwApiRcRssi::ConstSharedPtr      rc_rssi);
 
   // | ------------------- Init methods ------------------------- |

@@ -115,16 +115,14 @@ void StateMonitor::initialize() {
     // load the plugin parameters
     std::string address;
     std::string name_space;
-    std::string sensor_name;
     std::string type;
     std::string topic;
 
     param_loader.loadParam(sensor_handler_name + "/address", address);
-    param_loader.loadParam(sensor_handler_name + "/name", sensor_name);
     param_loader.loadParam(sensor_handler_name + "/type", type);
     param_loader.loadParam(sensor_handler_name + "/topic", topic);
 
-    SensorHandlerParams new_sensor_handler(address, _robot_name_, sensor_name, type, topic);
+    SensorHandlerParams new_sensor_handler(address, _robot_name_, sensor_handler_name, type, topic);
     sensor_handlers_params_.insert(std::pair<std::string, SensorHandlerParams>(sensor_handler_name, new_sensor_handler));
 
     try {
@@ -230,7 +228,6 @@ void StateMonitor::initialize() {
   // | -------------------- SystemHealthInfo -------------------- |
   ph_system_health_info_    = mrs_lib::PublisherHandler<mrs_msgs::msg::SystemHealthInfo>(node_, "~/system_health_info_out");
   last_wifi_read_time_      = clock_->now();
-  sh_hw_api_magnetic_field_ = mrs_lib::SubscriberHandler<sensor_msgs::msg::MagneticField>(shopts, "~/hw_api_magnetic_field_in", mrs_lib::no_timeout);
 
   // | ------------------------ UAV state ----------------------- |
   ph_uav_state_ = mrs_lib::PublisherHandler<mrs_msgs::msg::State>(node_, "~/uav_state_out");
@@ -294,7 +291,6 @@ void StateMonitor::timerMain() {
   const auto       hw_api_gnss                    = processIncomingMessage(sh_hw_api_gnss_);
   const auto       hw_api_gnss_status             = processIncomingMessage(sh_hw_api_gnss_status_);
   const auto       hw_api_mag_heading             = processIncomingMessage(sh_hw_api_mag_heading_);
-  const auto       hw_api_magnetic_field          = processIncomingMessage(sh_hw_api_magnetic_field_);
   const auto       hw_api_rc_rssi                 = processIncomingMessage(sh_hw_api_rc_rssi_);
   const auto       hw_api_status                  = processIncomingMessage(sh_hw_api_status_);
   const auto       mass_estimate                  = processIncomingMessage(sh_mass_estimate_);
@@ -324,9 +320,9 @@ void StateMonitor::timerMain() {
   if (hw_api_status.hasNewMessage || uav_status.hasNewMessage || mass_nominal.hasNewMessage || mass_estimate.hasNewMessage)
     last_uav_info_ = parse_uav_info(hw_api_status.message, uav_status.message, mass_nominal.message, mass_estimate.message);
 
-  if (uav_status.hasNewMessage || hw_api_gnss.hasNewMessage || hw_api_magnetic_field.hasNewMessage || hw_api_rc_rssi.hasNewMessage ||
+  if (uav_status.hasNewMessage || hw_api_gnss.hasNewMessage || hw_api_rc_rssi.hasNewMessage ||
       hw_api_gnss_status.hasNewMessage)
-    last_system_health_info_ = parse_system_health_info(uav_status.message, hw_api_magnetic_field.message, hw_api_rc_rssi.message);
+    last_system_health_info_ = parse_system_health_info(uav_status.message, hw_api_rc_rssi.message);
 
   ph_general_robot_info_.publish(last_general_robot_info_);
   ph_state_estimation_info_.publish(last_state_estimation_info_);
@@ -743,12 +739,10 @@ mrs_msgs::msg::UavInfo StateMonitor::parse_uav_info(mrs_msgs::msg::HwApiStatus::
 }
 
 mrs_msgs::msg::SystemHealthInfo StateMonitor::parse_system_health_info(mrs_msgs::msg::UavStatus::ConstSharedPtr        uav_status,
-                                                                       sensor_msgs::msg::MagneticField::ConstSharedPtr magnetic_field,
                                                                        mrs_msgs::msg::HwApiRcRssi::ConstSharedPtr      rc_rssi) {
   mrs_msgs::msg::SystemHealthInfo msg;
 
   const bool is_uav_status_valid     = uav_status != nullptr;
-  const bool is_magnetic_field_valid = magnetic_field != nullptr;
 
   if (is_uav_status_valid) {
     msg.cpu_load   = uav_status->cpu_load;
@@ -766,13 +760,6 @@ mrs_msgs::msg::SystemHealthInfo StateMonitor::parse_system_health_info(mrs_msgs:
     msg.hw_api_rate           = uav_status->hw_api_hz;
     msg.control_manager_rate  = uav_status->control_manager_diag_hz;
     msg.state_estimation_rate = uav_status->odom_hz;
-  }
-
-  if (is_magnetic_field_valid) {
-    const Eigen::Vector3d field(magnetic_field->magnetic_field.x, magnetic_field->magnetic_field.y, magnetic_field->magnetic_field.z);
-    msg.mag_strength          = field.norm();
-    const Eigen::Matrix3d cov = cov2eigen(magnetic_field->magnetic_field_covariance);
-    msg.mag_uncertainty       = std::cbrt(cov.determinant());
   }
 
   // Get Wifi info from the system

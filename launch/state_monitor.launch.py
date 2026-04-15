@@ -182,7 +182,6 @@ def generate_launch_description():
             ("~/hw_api_gnss_in", "hw_api/gnss"),
             ("~/hw_api_gnss_status_in", "hw_api/gnss_status"),
             ("~/hw_api_mag_heading_in", "hw_api/mag_heading"),
-            ("~/hw_api_magnetic_field_in", "hw_api/magnetic_field"),
             ("~/hw_api_rc_rssi_in", "hw_api/rc_rssi"),
             ("~/hw_api_status_in", "hw_api/status"),
             ("~/mass_estimate_in", "control_manager/mass_estimate"),

@@ -186,7 +186,6 @@ void StateMonitor::initialize() {
   last_state_estimation_info_ = init_state_estimation_info();
   sh_estimation_diagnostics_  = mrs_lib::SubscriberHandler<mrs_msgs::msg::EstimationDiagnostics>(shopts, "~/estimation_diagnostics_in");
   sh_hw_api_gnss_             = mrs_lib::SubscriberHandler<sensor_msgs::msg::NavSatFix>(shopts, "~/hw_api_gnss_in");
-  sh_hw_api_gnss_status_      = mrs_lib::SubscriberHandler<mrs_msgs::msg::GpsInfo>(shopts, "~/hw_api_gnss_status_in");
   sh_control_manager_heading_ = mrs_lib::SubscriberHandler<mrs_msgs::msg::Float64Stamped>(shopts, "~/control_manager_heading_in");
   sh_hw_api_mag_heading_      = mrs_lib::SubscriberHandler<mrs_msgs::msg::Float64Stamped>(shopts, "~/hw_api_mag_heading_in");
   sh_hw_api_rc_rssi_          = mrs_lib::SubscriberHandler<mrs_msgs::msg::HwApiRcRssi>(shopts, "~/hw_api_rc_rssi_in");
@@ -273,9 +272,7 @@ void StateMonitor::timerMain() {
   const auto       gain_manager_diagnostics       = processIncomingMessage(sh_gain_manager_diagnostics_);
   const auto       estimation_diagnostics         = processIncomingMessage(sh_estimation_diagnostics_);
   const auto       hw_api_gnss                    = processIncomingMessage(sh_hw_api_gnss_);
-  const auto       hw_api_gnss_status             = processIncomingMessage(sh_hw_api_gnss_status_);
   const auto       hw_api_mag_heading             = processIncomingMessage(sh_hw_api_mag_heading_);
-  const auto       hw_api_rc_rssi                 = processIncomingMessage(sh_hw_api_rc_rssi_);
   const auto       hw_api_status                  = processIncomingMessage(sh_hw_api_status_);
   const auto       mass_estimate                  = processIncomingMessage(sh_mass_estimate_);
   const auto       mass_nominal                   = processIncomingMessage(sh_mass_nominal_);
@@ -304,8 +301,8 @@ void StateMonitor::timerMain() {
   if (hw_api_status.hasNewMessage || uav_status.hasNewMessage || mass_nominal.hasNewMessage || mass_estimate.hasNewMessage)
     last_uav_info_ = parse_uav_info(hw_api_status.message, uav_status.message, mass_nominal.message, mass_estimate.message);
 
-  if (uav_status.hasNewMessage || hw_api_gnss.hasNewMessage || hw_api_rc_rssi.hasNewMessage || hw_api_gnss_status.hasNewMessage)
-    last_system_health_info_ = parse_system_health_info(uav_status.message, hw_api_rc_rssi.message);
+  if (uav_status.hasNewMessage)
+    last_system_health_info_ = parse_system_health_info(uav_status.message);
 
   ph_general_robot_info_.publish(last_general_robot_info_);
   ph_state_estimation_info_.publish(last_state_estimation_info_);
@@ -721,8 +718,7 @@ mrs_msgs::msg::UavInfo StateMonitor::parse_uav_info(mrs_msgs::msg::HwApiStatus::
   return msg;
 }
 
-mrs_msgs::msg::SystemHealthInfo StateMonitor::parse_system_health_info(mrs_msgs::msg::UavStatus::ConstSharedPtr   uav_status,
-                                                                       mrs_msgs::msg::HwApiRcRssi::ConstSharedPtr rc_rssi) {
+mrs_msgs::msg::SystemHealthInfo StateMonitor::parse_system_health_info(mrs_msgs::msg::UavStatus::ConstSharedPtr uav_status) {
   mrs_msgs::msg::SystemHealthInfo msg;
 
   const bool is_uav_status_valid = uav_status != nullptr;

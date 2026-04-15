@@ -300,8 +300,7 @@ private:
                                         std_msgs::msg::Float64::ConstSharedPtr mass_nominal, std_msgs::msg::Float64::ConstSharedPtr mass_estimate);
 
   /** @brief Build SystemHealthInfo from UAV status, GNSS, magnetometer, RC RSSI, and WiFi. */
-  mrs_msgs::msg::SystemHealthInfo parse_system_health_info(mrs_msgs::msg::UavStatus::ConstSharedPtr        uav_status,
-                                                           mrs_msgs::msg::HwApiRcRssi::ConstSharedPtr      rc_rssi);
+  mrs_msgs::msg::SystemHealthInfo parse_system_health_info(mrs_msgs::msg::UavStatus::ConstSharedPtr uav_status);
 
   // | ------------------- Init methods ------------------------- |
 

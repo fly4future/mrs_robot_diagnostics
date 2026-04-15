@@ -1,10 +1,10 @@
-<library path="MrsRobotDiagnostics_CameraHandler">
-  <class name="mrs_robot_diagnostics/CameraHandler"
-    type="mrs_robot_diagnostics::camera_handler::CameraHandler"
-    base_class_type="mrs_robot_diagnostics::SensorHandler">
-    <description>MrsRobotDiagnostics_CameraHandler</description>
-  </class>
-</library>
+<!-- <library path="MrsRobotDiagnostics_CameraHandler"> -->
+<!--   <class name="mrs_robot_diagnostics/CameraHandler" -->
+<!--     type="mrs_robot_diagnostics::camera_handler::CameraHandler" -->
+<!--     base_class_type="mrs_robot_diagnostics::SensorHandler"> -->
+<!--     <description>MrsRobotDiagnostics_CameraHandler</description> -->
+<!--   </class> -->
+<!-- </library> -->
 
 <library path="MrsRobotDiagnostics_GenericSensorHandler">
   <class name="mrs_robot_diagnostics/GenericSensorHandler"

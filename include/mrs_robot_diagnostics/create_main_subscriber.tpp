@@ -5,8 +5,8 @@ namespace mrs_robot_diagnostics
 
 template <typename MessageType>
 mrs_lib::SubscriberHandler<MessageType> SensorHandler::create_main_subscriber(rclcpp::Node::SharedPtr &node, const std::string &topic_name,
-                                                                              const rclcpp::Duration          &timeout,
-                                                                              rclcpp::CallbackGroup::SharedPtr cbkgrp_subs) {
+                                                                              rclcpp::CallbackGroup::SharedPtr cbkgrp_subs,
+                                                                              const rclcpp::Duration          &timeout) {
 
   shopts_.node                                = node;
   shopts_.node_name                           = "StateMonitor";

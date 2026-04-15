@@ -11,7 +11,7 @@ bool GPSHandler::onInitialize(rclcpp::Node::SharedPtr &node, [[maybe_unused]] co
   RCLCPP_INFO(node->get_logger(), "[GPSHandler] Initializing '%s', topic: '%s'", name_.c_str(), topic_.c_str());
 
   // Create subscriber handlers for GPS data and status
-  sh_gnns_        = create_main_subscriber<sensor_msgs::msg::NavSatFix>(node, topic_);
+  sh_gnns_        = create_main_subscriber<sensor_msgs::msg::NavSatFix>(node, topic_, cbkgrp_subs);
   sh_gnss_status_ = mrs_lib::SubscriberHandler<mrs_msgs::msg::GpsInfo>(shopts_, "~/hw_api_gnss_status_in");
   return true;
 }
@@ -27,7 +27,7 @@ std::vector<diagnostic_msgs::msg::KeyValue> GPSHandler::fill_details() {
     // Initialize with default values if no GPS data has been received yet
     diagnostic_msgs::msg::KeyValue info;
     info.key   = "uncertainty";
-    info.value = "nan"; 
+    info.value = "nan";
     details.push_back(info);
   } else {
     diagnostic_msgs::msg::KeyValue info;
@@ -40,10 +40,10 @@ std::vector<diagnostic_msgs::msg::KeyValue> GPSHandler::fill_details() {
   if (!gnss_status_msg) {
     diagnostic_msgs::msg::KeyValue info;
     info.key   = "fix_type";
-    info.value = "nan"; 
+    info.value = "nan";
     details.push_back(info);
     info.key   = "num_satellites";
-    info.value = "nan"; 
+    info.value = "nan";
     details.push_back(info);
   } else {
     diagnostic_msgs::msg::KeyValue info;

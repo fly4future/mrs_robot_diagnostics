@@ -5,12 +5,12 @@ namespace mrs_robot_diagnostics
 namespace rc_handler
 {
 
-bool RCHandler::onInitialize(rclcpp::Node::SharedPtr &node, [[maybe_unused]] const std::string &config_key,
-                             [[maybe_unused]] const std::string &name_space, [[maybe_unused]] rclcpp::CallbackGroup::SharedPtr cbkgrp_subs) {
+bool RCHandler::onInitialize(rclcpp::Node::SharedPtr &node, [[maybe_unused]] const std::string &config_key, [[maybe_unused]] const std::string &name_space,
+                             [[maybe_unused]] rclcpp::CallbackGroup::SharedPtr cbkgrp_subs) {
 
   RCLCPP_INFO(node->get_logger(), "[RCHandler] Initializing '%s', topic: '%s'", name_.c_str(), topic_.c_str());
 
-  sh_rc_rssi_ = create_main_subscriber<mrs_msgs::msg::HwApiRcRssi>(node, topic_);
+  sh_rc_rssi_ = create_main_subscriber<mrs_msgs::msg::HwApiRcRssi>(node, topic_, cbkgrp_subs);
   return true;
 }
 

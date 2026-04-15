@@ -5,8 +5,8 @@ namespace mrs_robot_diagnostics
 
 namespace camera_handler
 {
-bool CameraHandler::onInitialize(rclcpp::Node::SharedPtr &node, [[maybe_unused]] const std::string &config_key,
-                               [[maybe_unused]] const std::string &name_space, rclcpp::CallbackGroup::SharedPtr cbkgrp_subs) {
+bool CameraHandler::onInitialize(rclcpp::Node::SharedPtr &node, [[maybe_unused]] const std::string &config_key, [[maybe_unused]] const std::string &name_space,
+                                 rclcpp::CallbackGroup::SharedPtr cbkgrp_subs) {
 
   // Initialize tf2 components
   tf_buffer_   = std::make_unique<tf2_ros::Buffer>(node->get_clock());
@@ -90,8 +90,8 @@ mrs_msgs::msg::SensorStatus CameraHandler::updateStatus() {
   ss_msg.topic = topic_;
 
   if (!is_initialized_) {
-    ss_msg.ready  = false;
-    ss_msg.rate   = -1;
+    ss_msg.ready = false;
+    ss_msg.rate  = -1;
     // ss_msg.status = "NOT_INITIALIZED";
     return ss_msg;
   }
@@ -126,13 +126,13 @@ mrs_msgs::msg::SensorStatus CameraHandler::updateStatus() {
     };
 
   } else {
-    ss_msg.ready  = false;
-    ss_msg.rate   = -1;
+    ss_msg.ready = false;
+    ss_msg.rate  = -1;
     // ss_msg.status = "NO_CAMERA_INFO";
   }
 
   geometry_msgs::msg::TransformStamped transform;
-  nlohmann::json                                 camera_tf_json;
+  nlohmann::json                       camera_tf_json;
   try {
     transform = tf_buffer_->lookupTransform(_fcu_frame_, _camera_frame_, tf2::TimePointZero);
     double x  = transform.transform.translation.x;

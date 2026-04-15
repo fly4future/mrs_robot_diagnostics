@@ -79,6 +79,7 @@ target_sources(MrsRobotDiagnostics_MrsRobotDiagnostics
     "include/mrs_robot_diagnostics/enums/enum_helpers.h"
     "include/mrs_robot_diagnostics/enums/enum_macros.h"
     "include/mrs_robot_diagnostics/sensor_handler.h"  
+    "include/mrs_robot_diagnostics/create_main_subscriber.tpp"
 )
 
 target_link_libraries(MrsRobotDiagnostics_MrsRobotDiagnostics

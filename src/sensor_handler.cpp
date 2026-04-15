@@ -17,9 +17,9 @@ bool SensorHandler::initialize(rclcpp::Node::SharedPtr &node, const std::string 
   param_loader.addYamlFileFromParam("config");
   param_loader.setPrefix("robot_diagnostics/sensor_handlers/");
 
+  name_ = config_key;  // default name is the config key
   // Load all common parameters using the YAML key (config_key)
   std::string sensor_type_str;
-  param_loader.loadParam(config_key + "/name", name_, config_key);  // display name defaults to config_key if not set
   param_loader.loadParam(config_key + "/topic", topic_);
   param_loader.loadParam(config_key + "/type", sensor_type_str);
   param_loader.loadParam(config_key + "/expected_rate", expected_rate_);
@@ -177,6 +177,7 @@ uint8_t SensorHandler::mapSensorType(const std::string &type_str) {
       {"Magnetometer", mrs_msgs::msg::SensorStatus::TYPE_MAGNETOMETER},
       {"Lidar", mrs_msgs::msg::SensorStatus::TYPE_LIDAR},
       {"Camera", mrs_msgs::msg::SensorStatus::TYPE_CAMERA},
+      {"RemoteController", mrs_msgs::msg::SensorStatus::TYPE_REMOTE_CONTROLLER},
   };
 
   auto it = type_map.find(type_str);
@@ -184,8 +185,8 @@ uint8_t SensorHandler::mapSensorType(const std::string &type_str) {
     return it->second;
   }
 
-  RCLCPP_WARN(rclcpp::get_logger("GenericSensorHandler"), "Unknown sensor type '%s', defaulting to TYPE_AUTOPILOT (0)", type_str.c_str());
-  return mrs_msgs::msg::SensorStatus::TYPE_AUTOPILOT;
+  RCLCPP_WARN(rclcpp::get_logger("GenericSensorHandler"), "Unknown sensor type '%s'", type_str.c_str());
+  return mrs_msgs::msg::SensorStatus::TYPE_UNKNOWN;
 }
 
 Eigen::Matrix3d SensorHandler::cov2eigen(const std::array<double, 9> &msg_cov) {

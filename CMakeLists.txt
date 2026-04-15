@@ -44,7 +44,7 @@ set(LIBRARIES
   MrsRobotDiagnostics_MrsRobotDiagnostics
   MrsRobotDiagnostics_StateMonitor
   MrsRobotDiagnostics_GenericSensorHandler
-  MrsRobotDiagnostics_CameraHandler
+  # MrsRobotDiagnostics_CameraHandler
   MrsRobotDiagnostics_GPSHandler
   MrsRobotDiagnostics_MagnetometerHandler
   MrsRobotDiagnostics_RemoteController
@@ -111,18 +111,18 @@ rclcpp_components_register_nodes(MrsRobotDiagnostics_StateMonitor "mrs_robot_dia
 
 target_compile_definitions(MrsRobotDiagnostics_StateMonitor PRIVATE USE_ROS_TIMER=${USE_ROS_TIMER})
 
-## | ----------- MrsRobotDiagnostics_CameraHandler ------------ |
-
-add_library(MrsRobotDiagnostics_CameraHandler SHARED
-  src/sensor_handler_plugins/camera_handler.cpp
-)
-
-target_link_libraries(MrsRobotDiagnostics_CameraHandler
-  PRIVATE
-    mrs_robot_diagnostics::mrs_robot_diagnostics 
-)
-
-target_compile_definitions(MrsRobotDiagnostics_CameraHandler PRIVATE USE_ROS_TIMER=${USE_ROS_TIMER})
+# ## | ----------- MrsRobotDiagnostics_CameraHandler ------------ |
+#
+# add_library(MrsRobotDiagnostics_CameraHandler SHARED
+#   src/sensor_handler_plugins/camera_handler.cpp
+# )
+#
+# target_link_libraries(MrsRobotDiagnostics_CameraHandler
+#   PRIVATE
+#     mrs_robot_diagnostics::mrs_robot_diagnostics 
+# )
+#
+# target_compile_definitions(MrsRobotDiagnostics_CameraHandler PRIVATE USE_ROS_TIMER=${USE_ROS_TIMER})
 
 ## | ----------- MrsRobotDiagnostics_GPSHandler ------------ |
 add_library(MrsRobotDiagnostics_GPSHandler SHARED

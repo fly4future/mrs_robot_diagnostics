@@ -5,7 +5,7 @@ namespace mrs_robot_diagnostics
 namespace generic_handler
 {
 
-bool GenericSensorHandler::onInitialize(rclcpp::Node::SharedPtr &node, const std::string &name, const std::string &name_space, const std::string &topic,
+bool GenericSensorHandler::onInitialize(rclcpp::Node::SharedPtr &node, const std::string &config_key, [[maybe_unused]] const std::string &name_space,
                                         rclcpp::CallbackGroup::SharedPtr cbkgrp_subs) {
 
   mrs_lib::ParamLoader param_loader(node, "GenericSensorHandler");
@@ -21,12 +21,10 @@ bool GenericSensorHandler::onInitialize(rclcpp::Node::SharedPtr &node, const std
 
   // Read GenericSensorHandler-specific params
   std::string message_type;
-  param_loader.loadParam(name + "/message_type", message_type);
+  param_loader.loadParam(config_key + "/message_type", message_type);
 
-  if (param_loader.loadedSuccessfully()) {
-    RCLCPP_INFO(node->get_logger(), "[GenericSensorHandler] Successfully loaded config for topic '%s'", topic.c_str());
-  } else {
-    RCLCPP_ERROR(node->get_logger(), "[GenericSensorHandler] Failed to load config for generic handler '%s', not initializing", name.c_str());
+  if (!param_loader.loadedSuccessfully()) {
+    RCLCPP_ERROR(node->get_logger(), "[GenericSensorHandler] Failed to load config for '%s', not initializing", config_key.c_str());
     error_publisher_->addOneshotError("Failed to load config for generic sensor handler " + name_);
     return false;
   }
@@ -36,11 +34,10 @@ bool GenericSensorHandler::onInitialize(rclcpp::Node::SharedPtr &node, const std
   sub_options.callback_group = cbkgrp_subs;
 
   generic_sub_ = node->create_generic_subscription(
-      topic, message_type, qos_profile_, [this](std::shared_ptr<const rclcpp::SerializedMessage> msg) { this->messageCallback(msg); }, sub_options);
-
+      topic_, message_type, qos_profile_, [this](std::shared_ptr<const rclcpp::SerializedMessage> msg) { this->messageCallback(msg); }, sub_options);
 
   RCLCPP_INFO(node->get_logger(), "[GenericSensorHandler] '%s' initialized: topic='%s', msg_type='%s', expected_rate=%.1f Hz, tolerance=%.0f%%", name_.c_str(),
-              topic.c_str(), message_type.c_str(), expected_rate_, rate_tolerance_ * 100.0);
+              topic_.c_str(), message_type.c_str(), expected_rate_, rate_tolerance_ * 100.0);
 
   return true;
 }

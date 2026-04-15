@@ -19,16 +19,12 @@ class CameraHandler : public mrs_robot_diagnostics::SensorHandler {
 public:
   CameraHandler() = default;
 
-  bool                        onInitialize(rclcpp::Node::SharedPtr &node, const std::string &name, const std::string &name_space, const std::string &topic,
+  bool                        onInitialize(rclcpp::Node::SharedPtr &node, const std::string &config_key, const std::string &name_space,
                                          rclcpp::CallbackGroup::SharedPtr cbkgrp_subs = nullptr) override;
   mrs_msgs::msg::SensorStatus updateStatus() override;
 
 
 private:
-  std::string _name_;
-  std::string _topic_;
-  bool        is_initialized_ = false;
-  bool        is_active_      = false;
   std::string _camera_frame_;
   std::string _optical_frame_;
   std::string _fcu_frame_;

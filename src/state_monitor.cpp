@@ -108,52 +108,34 @@ void StateMonitor::initialize() {
   sensor_handler_loader_ =
       std::make_unique<pluginlib::ClassLoader<mrs_robot_diagnostics::SensorHandler>>("mrs_robot_diagnostics", "mrs_robot_diagnostics::SensorHandler");
 
-  // for each plugin in the list
+  // for each plugin in the list: load its pluginlib address, create the instance, and initialize
   for (int i = 0; i < int(_sensor_handler_names_.size()); i++) {
-    std::string sensor_handler_name = _sensor_handler_names_[i];
+    const std::string &config_key = _sensor_handler_names_[i];
 
-    // load the plugin parameters
     std::string address;
-    std::string name_space;
-    std::string type;
-    std::string topic;
-
-    param_loader.loadParam(sensor_handler_name + "/address", address);
-    param_loader.loadParam(sensor_handler_name + "/type", type);
-    param_loader.loadParam(sensor_handler_name + "/topic", topic);
-
-    SensorHandlerParams new_sensor_handler(address, _robot_name_, sensor_handler_name, type, topic);
-    sensor_handlers_params_.insert(std::pair<std::string, SensorHandlerParams>(sensor_handler_name, new_sensor_handler));
+    param_loader.loadParam(config_key + "/address", address);
 
     try {
-      RCLCPP_INFO(node_->get_logger(), "loading the sensor handler '%s'", new_sensor_handler.address.c_str());
-      sensor_handlers_.push_back(sensor_handler_loader_->createSharedInstance(new_sensor_handler.address.c_str()));
+      RCLCPP_INFO(node_->get_logger(), "Loading sensor handler '%s' (%s)", config_key.c_str(), address.c_str());
+      sensor_handlers_.push_back(sensor_handler_loader_->createSharedInstance(address));
     }
     catch (pluginlib::CreateClassException &ex1) {
-      RCLCPP_ERROR(node_->get_logger(), "CreateClassException for the sensor handler '%s'", new_sensor_handler.address.c_str());
-      RCLCPP_ERROR(node_->get_logger(), "Error: %s", ex1.what());
+      RCLCPP_ERROR(node_->get_logger(), "CreateClassException for sensor handler '%s': %s", config_key.c_str(), ex1.what());
       rclcpp::shutdown();
     }
     catch (pluginlib::PluginlibException &ex) {
-      RCLCPP_ERROR(node_->get_logger(), "PluginlibException for the sensor handler '%s'", new_sensor_handler.address.c_str());
-      RCLCPP_ERROR(node_->get_logger(), "Error: %s", ex.what());
+      RCLCPP_ERROR(node_->get_logger(), "PluginlibException for sensor handler '%s': %s", config_key.c_str(), ex.what());
       rclcpp::shutdown();
     }
   }
 
-  RCLCPP_INFO(node_->get_logger(), "sensor handlers were loaded");
-  {
-    for (int i = 0; i < int(sensor_handlers_.size()); i++) {
-      try {
-        std::map<std::string, SensorHandlerParams>::iterator it;
-        it = sensor_handlers_params_.find(_sensor_handler_names_[i]);
-
-        RCLCPP_INFO(node_->get_logger(), "initializing the sensor handler'%s'", it->second.address.c_str());
-        sensor_handlers_[i]->initialize(node_, it->second.sensor_name, it->second.name_space, it->second.topic, cbkgrp_subs_);
-      }
-      catch (std::runtime_error &ex) {
-        RCLCPP_ERROR(node_->get_logger(), "exception caught during sensor handler initialization '%s'", ex.what());
-      }
+  RCLCPP_INFO(node_->get_logger(), "Sensor handlers loaded, initializing...");
+  for (int i = 0; i < int(sensor_handlers_.size()); i++) {
+    try {
+      sensor_handlers_[i]->initialize(node_, _sensor_handler_names_[i], _robot_name_, cbkgrp_subs_);
+    }
+    catch (std::runtime_error &ex) {
+      RCLCPP_ERROR(node_->get_logger(), "Exception during sensor handler '%s' initialization: %s", _sensor_handler_names_[i].c_str(), ex.what());
     }
   }
 

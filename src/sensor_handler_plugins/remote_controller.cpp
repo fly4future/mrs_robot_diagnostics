@@ -5,13 +5,12 @@ namespace mrs_robot_diagnostics
 namespace remote_controller
 {
 
-bool RemoteController::onInitialize(rclcpp::Node::SharedPtr &node, const std::string &name, const std::string &name_space, const std::string &topic,
-                                    [[maybe_unused]] rclcpp::CallbackGroup::SharedPtr cbkgrp_subs) {
+bool RemoteController::onInitialize(rclcpp::Node::SharedPtr &node, [[maybe_unused]] const std::string &config_key,
+                                    [[maybe_unused]] const std::string &name_space, [[maybe_unused]] rclcpp::CallbackGroup::SharedPtr cbkgrp_subs) {
 
-  RCLCPP_INFO(node->get_logger(), "Initializing name: %s, namespace: %s", name.c_str(), name_space.c_str());
-  RCLCPP_INFO(node->get_logger(), "Subscribing to topic: %s", topic.c_str());
+  RCLCPP_INFO(node->get_logger(), "[RemoteController] Initializing '%s', topic: '%s'", name_.c_str(), topic_.c_str());
 
-  sh_rc_rssi_ = create_main_subscriber<mrs_msgs::msg::HwApiRcRssi>(node, topic);
+  sh_rc_rssi_ = create_main_subscriber<mrs_msgs::msg::HwApiRcRssi>(node, topic_);
   return true;
 }
 

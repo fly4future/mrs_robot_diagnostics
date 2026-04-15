@@ -5,11 +5,8 @@ namespace mrs_robot_diagnostics
 
 namespace camera_handler
 {
-bool CameraHandler::onInitialize(rclcpp::Node::SharedPtr &node, const std::string &name, const std::string &name_space, const std::string &topic,
-                               rclcpp::CallbackGroup::SharedPtr cbkgrp_subs) {
-  _name_  = name;
-  _topic_ = topic;
-
+bool CameraHandler::onInitialize(rclcpp::Node::SharedPtr &node, [[maybe_unused]] const std::string &config_key,
+                               [[maybe_unused]] const std::string &name_space, rclcpp::CallbackGroup::SharedPtr cbkgrp_subs) {
 
   // Initialize tf2 components
   tf_buffer_   = std::make_unique<tf2_ros::Buffer>(node->get_clock());
@@ -81,14 +78,14 @@ bool CameraHandler::onInitialize(rclcpp::Node::SharedPtr &node, const std::strin
   // Publisher
   ph_camera_details_ = mrs_lib::PublisherHandler<mrs_msgs::msg::SensorInfo>(node, "~/sensor_info_out");
 
-  RCLCPP_INFO(node->get_logger(), "Camera handler '%s' initialized in namespace '%s'", name.c_str(), name_space.c_str());
+  RCLCPP_INFO(node->get_logger(), "[CameraHandler] '%s' initialized, topic: '%s'", name_.c_str(), topic_.c_str());
   is_initialized_ = true;
   return true;
 }
 
 mrs_msgs::msg::SensorStatus CameraHandler::updateStatus() {
   mrs_msgs::msg::SensorStatus ss_msg;
-  ss_msg.name  = _name_;
+  ss_msg.name  = name_;
   ss_msg.type  = mrs_msgs::msg::SensorStatus::TYPE_CAMERA;
   ss_msg.topic = topic_;
 

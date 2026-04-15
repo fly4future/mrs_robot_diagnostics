@@ -10,7 +10,7 @@ namespace remote_controller
 
 class RemoteController : public mrs_robot_diagnostics::SensorHandler {
 public:
-  bool onInitialize(rclcpp::Node::SharedPtr &node, const std::string &name, const std::string &name_space, const std::string &topic,
+  bool onInitialize(rclcpp::Node::SharedPtr &node, const std::string &config_key, const std::string &name_space,
                     rclcpp::CallbackGroup::SharedPtr cbkgrp_subs = nullptr) override;
 
   std::vector<diagnostic_msgs::msg::KeyValue> fill_details() override;

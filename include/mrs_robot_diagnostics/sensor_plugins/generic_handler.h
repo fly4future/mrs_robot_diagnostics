@@ -11,7 +11,7 @@ namespace generic_handler
 
 class GenericSensorHandler : public mrs_robot_diagnostics::SensorHandler {
 public:
-  bool onInitialize(rclcpp::Node::SharedPtr &node, const std::string &name, const std::string &name_space, const std::string &topic,
+  bool onInitialize(rclcpp::Node::SharedPtr &node, const std::string &config_key, const std::string &name_space,
                     rclcpp::CallbackGroup::SharedPtr cbkgrp_subs = nullptr) override final;
 
 private:

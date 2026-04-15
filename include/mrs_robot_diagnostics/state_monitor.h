@@ -78,29 +78,6 @@ namespace state_monitor
 {
 
 /**
- * @brief Parameters for a dynamically loaded sensor handler plugin.
- */
-class SensorHandlerParams {
-
-public:
-  SensorHandlerParams(const std::string &address, const std::string &name_space, const std::string &sensor_name, const std::string &type,
-                      const std::string &topic)
-      : address(address)
-      , name_space(name_space)
-      , sensor_name(sensor_name)
-      , type(type)
-      , topic(topic) {
-  }
-
-public:
-  std::string address;     ///< pluginlib class address
-  std::string name_space;  ///< robot namespace
-  std::string sensor_name; ///< human-readable sensor name
-  std::string type;        ///< sensor type identifier
-  std::string topic;       ///< ROS topic for the sensor data
-};
-
-/**
  * @brief ROS2 composable node that aggregates UAV diagnostics from multiple subsystems.
  *
  * Subscribes to HW API, control manager, estimation, battery, GNSS, magnetometer,
@@ -244,7 +221,6 @@ private:
   // | -------------------- Sensor handlers --------------------- |
   std::unique_ptr<pluginlib::ClassLoader<mrs_robot_diagnostics::SensorHandler>> sensor_handler_loader_; ///< pluginlib loader for sensor handler plugins
   std::vector<std::string>                                                      _sensor_handler_names_;
-  std::map<std::string, SensorHandlerParams>                                    sensor_handlers_params_;
   std::vector<std::shared_ptr<mrs_robot_diagnostics::SensorHandler>>            sensor_handlers_;
   std::mutex                                                                    mutex_sensor_handler_list_;
 

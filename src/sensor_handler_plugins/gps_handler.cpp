@@ -5,14 +5,13 @@ namespace mrs_robot_diagnostics
 namespace gps_handler
 {
 
-bool GPSHandler::onInitialize(rclcpp::Node::SharedPtr &node, const std::string &name, const std::string &name_space, const std::string &topic,
+bool GPSHandler::onInitialize(rclcpp::Node::SharedPtr &node, [[maybe_unused]] const std::string &config_key, [[maybe_unused]] const std::string &name_space,
                               [[maybe_unused]] rclcpp::CallbackGroup::SharedPtr cbkgrp_subs) {
 
-  RCLCPP_INFO(node->get_logger(), "Initializing name: %s, namespace: %s", name.c_str(), name_space.c_str());
-  RCLCPP_INFO(node->get_logger(), "Subscribing to topic: %s", topic.c_str());
+  RCLCPP_INFO(node->get_logger(), "[GPSHandler] Initializing '%s', topic: '%s'", name_.c_str(), topic_.c_str());
 
   // Create subscriber handlers for GPS data and status
-  sh_gnns_        = create_main_subscriber<sensor_msgs::msg::NavSatFix>(node, topic);
+  sh_gnns_        = create_main_subscriber<sensor_msgs::msg::NavSatFix>(node, topic_);
   sh_gnss_status_ = mrs_lib::SubscriberHandler<mrs_msgs::msg::GpsInfo>(shopts_, "~/hw_api_gnss_status_in");
   return true;
 }

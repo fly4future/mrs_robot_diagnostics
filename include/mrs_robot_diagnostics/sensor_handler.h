@@ -5,10 +5,8 @@
 #include <mrs_lib/param_loader.h>
 #include <mrs_lib/publisher_handler.h>
 #include <mrs_lib/subscriber_handler.h>
-#include <mrs_msgs/msg/sensor_info.hpp>
 #include <mrs_msgs/msg/sensor_status.hpp>
 #include <mutex>
-#include <nlohmann/json.hpp>
 #include <rclcpp/rclcpp.hpp>
 
 namespace mrs_robot_diagnostics
@@ -16,7 +14,7 @@ namespace mrs_robot_diagnostics
 
 class SensorHandler {
 public:
-  bool initialize(rclcpp::Node::SharedPtr &node, const std::string &name, const std::string &name_space, const std::string &topic,
+  bool initialize(rclcpp::Node::SharedPtr &node, const std::string &config_key, const std::string &name_space,
                   rclcpp::CallbackGroup::SharedPtr cbkgrp_subs = nullptr);
 
   virtual mrs_msgs::msg::SensorStatus updateStatus();
@@ -24,9 +22,10 @@ public:
   virtual ~SensorHandler() = default;
 
 protected:
-  // Hook for derived classes to do additional initialization (e.g. create subscribers) after the base class has loaded parameters and set up rate monitoring
-  virtual bool onInitialize([[maybe_unused]] rclcpp::Node::SharedPtr &node, [[maybe_unused]] const std::string &name,
-                            [[maybe_unused]] const std::string &name_space, [[maybe_unused]] const std::string &topic,
+  // Hook for derived classes to do additional initialization (e.g. create subscribers) after the base class has loaded parameters and set up rate monitoring.
+  // config_key is the YAML key (e.g. "GPS") used for loading plugin-specific parameters.
+  virtual bool onInitialize([[maybe_unused]] rclcpp::Node::SharedPtr &node, [[maybe_unused]] const std::string &config_key,
+                            [[maybe_unused]] const std::string &name_space,
                             [[maybe_unused]] rclcpp::CallbackGroup::SharedPtr cbkgrp_subs = nullptr);
 
   // Hook for derived classes to provide additional details in the SensorStatus message

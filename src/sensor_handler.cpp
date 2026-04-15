@@ -3,16 +3,9 @@
 namespace mrs_robot_diagnostics
 {
 
-bool SensorHandler::initialize(rclcpp::Node::SharedPtr &node, const std::string &name, const std::string &name_space, const std::string &topic,
+bool SensorHandler::initialize(rclcpp::Node::SharedPtr &node, const std::string &config_key, const std::string &name_space,
                                rclcpp::CallbackGroup::SharedPtr cbkgrp_subs) {
-  name_ = name;
-  // Sanitize name for parameter loading and error reporting (replace spaces with underscores) 
-  std::replace(name_.begin(), name_.end(), ' ', '_');
-  topic_ = topic;
 
-  std::string handler_instance = name + " handler (" + topic + ")";
-
-  error_publisher_ = std::make_shared<mrs_lib::errorgraph::ErrorPublisher>(node, node->get_clock(), "StateMonitor", handler_instance);
   mrs_lib::ParamLoader param_loader(node, "SensorHandler");
 
   std::string custom_config_path;
@@ -24,21 +17,26 @@ bool SensorHandler::initialize(rclcpp::Node::SharedPtr &node, const std::string 
   param_loader.addYamlFileFromParam("config");
   param_loader.setPrefix("robot_diagnostics/sensor_handlers/");
 
+  // Load all common parameters using the YAML key (config_key)
   std::string sensor_type_str;
-  param_loader.loadParam(name + "/type", sensor_type_str);
-  param_loader.loadParam(name + "/expected_rate", expected_rate_);
-  param_loader.loadParam(name + "/rate_tolerance", rate_tolerance_, 0.3);
+  param_loader.loadParam(config_key + "/name", name_, config_key);  // display name defaults to config_key if not set
+  param_loader.loadParam(config_key + "/topic", topic_);
+  param_loader.loadParam(config_key + "/type", sensor_type_str);
+  param_loader.loadParam(config_key + "/expected_rate", expected_rate_);
+  param_loader.loadParam(config_key + "/rate_tolerance", rate_tolerance_, 0.3);
 
   std::string qos_reliability;
-  param_loader.loadParam(name + "/qos_reliability", qos_reliability, std::string("reliable"));
+  param_loader.loadParam(config_key + "/qos_reliability", qos_reliability, std::string("reliable"));
 
-  if (param_loader.loadedSuccessfully()) {
-    RCLCPP_INFO(node->get_logger(), "[SensorHandler] Successfully loaded config for topic '%s'", topic.c_str());
-  } else {
-    RCLCPP_ERROR(node->get_logger(), "[SensorHandler] Failed to load config for generic handler '%s', not initializing", name.c_str());
-    error_publisher_->addOneshotError("Failed to load config for sensor handler " + name_);
+  if (!param_loader.loadedSuccessfully()) {
+    RCLCPP_ERROR(node->get_logger(), "[SensorHandler] Failed to load config for sensor handler '%s', not initializing", config_key.c_str());
     return false;
   }
+
+  RCLCPP_INFO(node->get_logger(), "[SensorHandler] Loaded config for '%s' (topic: '%s')", name_.c_str(), topic_.c_str());
+
+  std::string handler_instance = name_ + " handler (" + topic_ + ")";
+  error_publisher_ = std::make_shared<mrs_lib::errorgraph::ErrorPublisher>(node, node->get_clock(), "StateMonitor", handler_instance);
 
   sensor_type_uint_ = mapSensorType(sensor_type_str);
 
@@ -57,7 +55,7 @@ bool SensorHandler::initialize(rclcpp::Node::SharedPtr &node, const std::string 
 
   is_initialized_ = true;
 
-  return onInitialize(node, name, name_space, topic, cbkgrp_subs);
+  return onInitialize(node, config_key, name_space, cbkgrp_subs);
 }
 
 mrs_msgs::msg::SensorStatus SensorHandler::updateStatus() {
@@ -144,8 +142,8 @@ mrs_msgs::msg::SensorStatus SensorHandler::updateStatus() {
   return ss;
 }
 
-bool SensorHandler::onInitialize([[maybe_unused]] rclcpp::Node::SharedPtr &node, [[maybe_unused]] const std::string &name,
-                                 [[maybe_unused]] const std::string &name_space, [[maybe_unused]] const std::string &topic,
+bool SensorHandler::onInitialize([[maybe_unused]] rclcpp::Node::SharedPtr &node, [[maybe_unused]] const std::string &config_key,
+                                 [[maybe_unused]] const std::string &name_space,
                                  [[maybe_unused]] rclcpp::CallbackGroup::SharedPtr cbkgrp_subs) {
   return true;
 }

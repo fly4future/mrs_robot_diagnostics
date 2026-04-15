@@ -46,6 +46,8 @@ set(LIBRARIES
   MrsRobotDiagnostics_GenericSensorHandler
   MrsRobotDiagnostics_CameraHandler
   MrsRobotDiagnostics_GPSHandler
+  MrsRobotDiagnostics_MagnetometerHandler
+  MrsRobotDiagnostics_RemoteController
 )
 
 foreach(DEP IN LISTS DEPENDENCIES)
@@ -134,6 +136,18 @@ target_link_libraries(MrsRobotDiagnostics_GPSHandler
 
 target_compile_definitions(MrsRobotDiagnostics_GPSHandler PRIVATE USE_ROS_TIMER=${USE_ROS_TIMER})
 
+## | ----------- MrsRobotDiagnostics_MagnetometerHandler ------------ |
+add_library(MrsRobotDiagnostics_MagnetometerHandler SHARED
+  src/sensor_handler_plugins/magnetometer_handler.cpp
+)
+
+target_link_libraries(MrsRobotDiagnostics_MagnetometerHandler
+  PRIVATE
+    mrs_robot_diagnostics::mrs_robot_diagnostics 
+)
+
+target_compile_definitions(MrsRobotDiagnostics_MagnetometerHandler PRIVATE USE_ROS_TIMER=${USE_ROS_TIMER})
+
 ## | -------- MrsRobotDiagnostics_GenericSensorHandler --------- |
 
 add_library(MrsRobotDiagnostics_GenericSensorHandler SHARED
@@ -146,6 +160,18 @@ target_link_libraries(MrsRobotDiagnostics_GenericSensorHandler
 )
 
 target_compile_definitions(MrsRobotDiagnostics_GenericSensorHandler PRIVATE USE_ROS_TIMER=${USE_ROS_TIMER})
+
+## | ----------- MrsRobotDiagnostics_RemoteController ------------ |
+add_library(MrsRobotDiagnostics_RemoteController SHARED
+  src/sensor_handler_plugins/remote_controller.cpp
+)
+
+target_link_libraries(MrsRobotDiagnostics_RemoteController
+  PRIVATE
+    mrs_robot_diagnostics::mrs_robot_diagnostics 
+)
+
+target_compile_definitions(MrsRobotDiagnostics_RemoteController PRIVATE USE_ROS_TIMER=${USE_ROS_TIMER})
 
 ## --------------------------------------------------------------
 ## |                       Export plugins                       |

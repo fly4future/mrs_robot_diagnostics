@@ -18,7 +18,23 @@
   <class name="mrs_robot_diagnostics/GPSHandler"
     type="mrs_robot_diagnostics::gps_handler::GPSHandler"
     base_class_type="mrs_robot_diagnostics::SensorHandler">
-  <description>GPS sensor handler for monitoring GPS topic publish rate and satellite count</description> 
+    <description>GPS sensor handler for monitoring GPS topic publish rate and satellite count</description>
   </class>
 </library>
 
+<library path="MrsRobotDiagnostics_MagnetometerHandler">
+  <class name="mrs_robot_diagnostics/MagnetometerHandler"
+    type="mrs_robot_diagnostics::magnetometer_handler::MagnetometerHandler"
+    base_class_type="mrs_robot_diagnostics::SensorHandler">
+    <description>Magnetometer sensor handler for monitoring magnetometer topic publish rate</description>
+  </class>
+</library>
+
+<library path="MrsRobotDiagnostics_RemoteController">
+  <class name="mrs_robot_diagnostics/RemoteController"
+    type="mrs_robot_diagnostics::remote_controller::RemoteController"
+    base_class_type="mrs_robot_diagnostics::SensorHandler">
+    <description>Remote controller handler for monitoring remote controller topic publish rate and
+      signal strength</description>
+  </class>
+</library>

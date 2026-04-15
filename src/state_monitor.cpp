@@ -108,36 +108,40 @@ void StateMonitor::initialize() {
   sensor_handler_loader_ =
       std::make_unique<pluginlib::ClassLoader<mrs_robot_diagnostics::SensorHandler>>("mrs_robot_diagnostics", "mrs_robot_diagnostics::SensorHandler");
 
-  // for each plugin in the list: load its pluginlib address, create the instance, and initialize
-  for (int i = 0; i < int(_sensor_handler_names_.size()); i++) {
-    const std::string &config_key = _sensor_handler_names_[i];
+  // For each plugin: load pluginlib address, create instance, and initialize.
+  // Only handlers that load AND initialize successfully are kept.
+  for (const auto &config_key : _sensor_handler_names_) {
 
     std::string address;
     param_loader.loadParam(config_key + "/address", address);
 
+    std::shared_ptr<mrs_robot_diagnostics::SensorHandler> handler;
     try {
       RCLCPP_INFO(node_->get_logger(), "Loading sensor handler '%s' (%s)", config_key.c_str(), address.c_str());
-      sensor_handlers_.push_back(sensor_handler_loader_->createSharedInstance(address));
+      handler = sensor_handler_loader_->createSharedInstance(address);
     }
     catch (pluginlib::CreateClassException &ex1) {
       RCLCPP_WARN(node_->get_logger(), "CreateClassException for sensor handler '%s': %s", config_key.c_str(), ex1.what());
+      continue;
     }
     catch (pluginlib::PluginlibException &ex) {
       RCLCPP_WARN(node_->get_logger(), "PluginlibException for sensor handler '%s': %s", config_key.c_str(), ex.what());
+      continue;
     }
-  }
 
-  RCLCPP_INFO(node_->get_logger(), "Sensor handlers loaded, initializing...");
-  for (int i = 0; i < int(sensor_handlers_.size()); i++) {
     try {
-      sensor_handlers_[i]->initialize(node_, _sensor_handler_names_[i], _robot_name_, cbkgrp_subs_);
+      if (!handler->initialize(node_, config_key, _robot_name_, cbkgrp_subs_)) {
+        RCLCPP_WARN(node_->get_logger(), "Sensor handler '%s' failed to initialize, skipping", config_key.c_str());
+        continue;
+      }
+      sensor_handlers_.push_back(handler);
     }
     catch (std::runtime_error &ex) {
-      RCLCPP_WARN(node_->get_logger(), "Exception during sensor handler '%s' initialization: %s", _sensor_handler_names_[i].c_str(), ex.what());
+      RCLCPP_WARN(node_->get_logger(), "Exception during sensor handler '%s' initialization: %s", config_key.c_str(), ex.what());
     }
   }
 
-  RCLCPP_INFO(node_->get_logger(), "Sensor handlers were initialized");
+  RCLCPP_INFO(node_->get_logger(), "%zu sensor handlers initialized successfully", sensor_handlers_.size());
 
   if (!param_loader.loadedSuccessfully()) {
     RCLCPP_ERROR(node_->get_logger(), "Could not load all parameters!");
@@ -206,8 +210,8 @@ void StateMonitor::initialize() {
   sh_mass_estimate_ = mrs_lib::SubscriberHandler<std_msgs::msg::Float64>(shopts, "~/mass_estimate_in");
 
   // | -------------------- SystemHealthInfo -------------------- |
-  ph_system_health_info_    = mrs_lib::PublisherHandler<mrs_msgs::msg::SystemHealthInfo>(node_, "~/system_health_info_out");
-  last_wifi_read_time_      = clock_->now();
+  ph_system_health_info_ = mrs_lib::PublisherHandler<mrs_msgs::msg::SystemHealthInfo>(node_, "~/system_health_info_out");
+  last_wifi_read_time_   = clock_->now();
 
   // | ------------------------ UAV state ----------------------- |
   ph_uav_state_ = mrs_lib::PublisherHandler<mrs_msgs::msg::State>(node_, "~/uav_state_out");
@@ -300,8 +304,7 @@ void StateMonitor::timerMain() {
   if (hw_api_status.hasNewMessage || uav_status.hasNewMessage || mass_nominal.hasNewMessage || mass_estimate.hasNewMessage)
     last_uav_info_ = parse_uav_info(hw_api_status.message, uav_status.message, mass_nominal.message, mass_estimate.message);
 
-  if (uav_status.hasNewMessage || hw_api_gnss.hasNewMessage || hw_api_rc_rssi.hasNewMessage ||
-      hw_api_gnss_status.hasNewMessage)
+  if (uav_status.hasNewMessage || hw_api_gnss.hasNewMessage || hw_api_rc_rssi.hasNewMessage || hw_api_gnss_status.hasNewMessage)
     last_system_health_info_ = parse_system_health_info(uav_status.message, hw_api_rc_rssi.message);
 
   ph_general_robot_info_.publish(last_general_robot_info_);
@@ -718,11 +721,11 @@ mrs_msgs::msg::UavInfo StateMonitor::parse_uav_info(mrs_msgs::msg::HwApiStatus::
   return msg;
 }
 
-mrs_msgs::msg::SystemHealthInfo StateMonitor::parse_system_health_info(mrs_msgs::msg::UavStatus::ConstSharedPtr        uav_status,
-                                                                       mrs_msgs::msg::HwApiRcRssi::ConstSharedPtr      rc_rssi) {
+mrs_msgs::msg::SystemHealthInfo StateMonitor::parse_system_health_info(mrs_msgs::msg::UavStatus::ConstSharedPtr   uav_status,
+                                                                       mrs_msgs::msg::HwApiRcRssi::ConstSharedPtr rc_rssi) {
   mrs_msgs::msg::SystemHealthInfo msg;
 
-  const bool is_uav_status_valid     = uav_status != nullptr;
+  const bool is_uav_status_valid = uav_status != nullptr;
 
   if (is_uav_status_valid) {
     msg.cpu_load   = uav_status->cpu_load;
@@ -748,11 +751,6 @@ mrs_msgs::msg::SystemHealthInfo StateMonitor::parse_system_health_info(mrs_msgs:
     msg.wifi_interface    = wifi.interface;
     msg.wifi_signal_dbm   = wifi.signal_dbm;
     msg.wifi_link_quality = wifi.link_quality;
-  }
-
-  // Get RC signal info
-  if (rc_rssi != nullptr) {
-    msg.rc_rssi = static_cast<float>(rc_rssi->rssi);
   }
 
   msg.available_sensors = available_sensors_;

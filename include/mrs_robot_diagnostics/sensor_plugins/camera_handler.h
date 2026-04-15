@@ -20,7 +20,7 @@ public:
   CameraHandler() = default;
 
   bool                        onInitialize(rclcpp::Node::SharedPtr &node, const std::string &config_key, const std::string &name_space,
-                                         rclcpp::CallbackGroup::SharedPtr cbkgrp_subs = nullptr) override;
+                                           rclcpp::CallbackGroup::SharedPtr cbkgrp_subs = nullptr) override;
   mrs_msgs::msg::SensorStatus updateStatus() override;
 
 

@@ -1,4 +1,5 @@
 #include <mrs_robot_diagnostics/sensor_handler.h>
+#include <unordered_map>
 
 namespace mrs_robot_diagnostics
 {
@@ -17,7 +18,7 @@ bool SensorHandler::initialize(rclcpp::Node::SharedPtr &node, const std::string 
   param_loader.addYamlFileFromParam("config");
   param_loader.setPrefix("robot_diagnostics/sensor_handlers/");
 
-  name_ = config_key;  // default name is the config key
+  name_ = config_key; // default name is the config key
   // Load all common parameters using the YAML key (config_key)
   std::string sensor_type_str;
   param_loader.loadParam(config_key + "/topic", topic_);
@@ -36,7 +37,7 @@ bool SensorHandler::initialize(rclcpp::Node::SharedPtr &node, const std::string 
   RCLCPP_INFO(node->get_logger(), "[SensorHandler] Loaded config for '%s' (topic: '%s')", name_.c_str(), topic_.c_str());
 
   std::string handler_instance = name_ + " handler (" + topic_ + ")";
-  error_publisher_ = std::make_shared<mrs_lib::errorgraph::ErrorPublisher>(node, node->get_clock(), "StateMonitor", handler_instance);
+  error_publisher_             = std::make_shared<mrs_lib::errorgraph::ErrorPublisher>(node, node->get_clock(), "StateMonitor", handler_instance);
 
   sensor_type_uint_ = mapSensorType(sensor_type_str);
 
@@ -53,9 +54,11 @@ bool SensorHandler::initialize(rclcpp::Node::SharedPtr &node, const std::string 
   init_time_          = rclcpp::Clock(RCL_STEADY_TIME).now();
   last_msg_wall_time_ = rclcpp::Time(0, 0, RCL_STEADY_TIME);
 
-  is_initialized_ = true;
 
-  return onInitialize(node, config_key, name_space, cbkgrp_subs);
+  const bool initialized = onInitialize(node, config_key, name_space, cbkgrp_subs);
+  is_initialized_        = initialized;
+
+  return initialized;
 }
 
 mrs_msgs::msg::SensorStatus SensorHandler::updateStatus() {
@@ -69,7 +72,6 @@ mrs_msgs::msg::SensorStatus SensorHandler::updateStatus() {
     ss.rate    = -1.0;
     ss.message = "Not initialized";
     ss.level   = mrs_msgs::msg::SensorStatus::ERROR;
-    error_publisher_->addGeneralError(error_type_t::not_initialized, "Sensor handler " + name_ + " is not initialized");
     ss.details = fill_details();
     return ss;
   }
@@ -143,8 +145,7 @@ mrs_msgs::msg::SensorStatus SensorHandler::updateStatus() {
 }
 
 bool SensorHandler::onInitialize([[maybe_unused]] rclcpp::Node::SharedPtr &node, [[maybe_unused]] const std::string &config_key,
-                                 [[maybe_unused]] const std::string &name_space,
-                                 [[maybe_unused]] rclcpp::CallbackGroup::SharedPtr cbkgrp_subs) {
+                                 [[maybe_unused]] const std::string &name_space, [[maybe_unused]] rclcpp::CallbackGroup::SharedPtr cbkgrp_subs) {
   return true;
 }
 

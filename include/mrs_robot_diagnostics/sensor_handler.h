@@ -21,19 +21,20 @@ public:
 
   virtual ~SensorHandler() = default;
 
+  std::string name_;
+
 protected:
   // Hook for derived classes to do additional initialization (e.g. create subscribers) after the base class has loaded parameters and set up rate monitoring.
   // config_key is the YAML key (e.g. "GPS") used for loading plugin-specific parameters.
   virtual bool onInitialize([[maybe_unused]] rclcpp::Node::SharedPtr &node, [[maybe_unused]] const std::string &config_key,
-                            [[maybe_unused]] const std::string &name_space,
-                            [[maybe_unused]] rclcpp::CallbackGroup::SharedPtr cbkgrp_subs = nullptr);
+                            [[maybe_unused]] const std::string &name_space, [[maybe_unused]] rclcpp::CallbackGroup::SharedPtr cbkgrp_subs = nullptr);
 
   // Hook for derived classes to provide additional details in the SensorStatus message
   // By default, returns an empty JSON object, but derived classes can override this to include custom details about the sensor status (e.g. last message
   // timestamp, error counts, etc.)
   virtual std::vector<diagnostic_msgs::msg::KeyValue> fill_details();
 
-  std::string name_;
+  // std::string name_;
   std::string topic_;
   uint8_t     sensor_type_uint_ = 0;
   bool        is_initialized_   = false;
@@ -73,8 +74,8 @@ protected:
 
   template <typename MessageType>
   mrs_lib::SubscriberHandler<MessageType> create_main_subscriber(rclcpp::Node::SharedPtr &node, const std::string &topic_name,
-                                                                 const rclcpp::Duration          &timeout     = mrs_lib::no_timeout,
-                                                                 rclcpp::CallbackGroup::SharedPtr cbkgrp_subs = nullptr);
+                                                                 rclcpp::CallbackGroup::SharedPtr cbkgrp_subs = nullptr,
+                                                                 const rclcpp::Duration          &timeout     = mrs_lib::no_timeout);
 };
 } // namespace mrs_robot_diagnostics
 

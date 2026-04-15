@@ -30,11 +30,10 @@
   </class>
 </library>
 
-<library path="MrsRobotDiagnostics_RemoteController">
-  <class name="mrs_robot_diagnostics/RemoteController"
-    type="mrs_robot_diagnostics::remote_controller::RemoteController"
+<library path="MrsRobotDiagnostics_RCHandler">
+  <class name="mrs_robot_diagnostics/RCHandler"
+    type="mrs_robot_diagnostics::rc_handler::RCHandler"
     base_class_type="mrs_robot_diagnostics::SensorHandler">
-    <description>Remote controller handler for monitoring remote controller topic publish rate and
-      signal strength</description>
+    <description>Remote controller handler for monitoring RC topic publish rate and signal strength</description>
   </class>
 </library>

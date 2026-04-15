@@ -5,10 +5,10 @@
 
 namespace mrs_robot_diagnostics
 {
-namespace remote_controller
+namespace rc_handler
 {
 
-class RemoteController : public mrs_robot_diagnostics::SensorHandler {
+class RCHandler : public mrs_robot_diagnostics::SensorHandler {
 public:
   bool onInitialize(rclcpp::Node::SharedPtr &node, const std::string &config_key, const std::string &name_space,
                     rclcpp::CallbackGroup::SharedPtr cbkgrp_subs = nullptr) override;
@@ -19,5 +19,5 @@ private:
   mrs_lib::SubscriberHandler<mrs_msgs::msg::HwApiRcRssi> sh_rc_rssi_;
 };
 
-} // namespace remote_controller
+} // namespace rc_handler
 } // namespace mrs_robot_diagnostics

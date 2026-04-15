@@ -120,12 +120,10 @@ void StateMonitor::initialize() {
       sensor_handlers_.push_back(sensor_handler_loader_->createSharedInstance(address));
     }
     catch (pluginlib::CreateClassException &ex1) {
-      RCLCPP_ERROR(node_->get_logger(), "CreateClassException for sensor handler '%s': %s", config_key.c_str(), ex1.what());
-      rclcpp::shutdown();
+      RCLCPP_WARN(node_->get_logger(), "CreateClassException for sensor handler '%s': %s", config_key.c_str(), ex1.what());
     }
     catch (pluginlib::PluginlibException &ex) {
-      RCLCPP_ERROR(node_->get_logger(), "PluginlibException for sensor handler '%s': %s", config_key.c_str(), ex.what());
-      rclcpp::shutdown();
+      RCLCPP_WARN(node_->get_logger(), "PluginlibException for sensor handler '%s': %s", config_key.c_str(), ex.what());
     }
   }
 
@@ -135,7 +133,7 @@ void StateMonitor::initialize() {
       sensor_handlers_[i]->initialize(node_, _sensor_handler_names_[i], _robot_name_, cbkgrp_subs_);
     }
     catch (std::runtime_error &ex) {
-      RCLCPP_ERROR(node_->get_logger(), "Exception during sensor handler '%s' initialization: %s", _sensor_handler_names_[i].c_str(), ex.what());
+      RCLCPP_WARN(node_->get_logger(), "Exception during sensor handler '%s' initialization: %s", _sensor_handler_names_[i].c_str(), ex.what());
     }
   }
 

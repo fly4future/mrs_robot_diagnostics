@@ -12,47 +12,69 @@ robot_diagnostics:
       # Example sensor handlers
       "PX4",
       "Rangefinder",
+      "GPS",
+      "Magnetometer",
+      "RemoteController",
       # "LidarHandler",
       # "IMUHandler",
-      "GPS",
       # "BatteryHandler",
-      # "BarometerHandler",
-      # "MagnetometerHandler",
       # "RangeFinderHandler",
     ]
 
+    # ExampleHandler:
+      # type: "Example" # Example, Autopilot, Camera, Lidar, IMU, GPS, Battery, Barometer, Magnetometer, RangeFinder
+      # address: "mrs_robot_diagnostics/ExampleHandler"
+      # topic: "example_node/topic" # Don't add the leading slash, the name will be resolved relative to the node's namespace 
+      # message_type: "std_msgs/msg/String"
+      # qos_reliability: "reliable"              # QoS reliability setting (default: "reliable")
+      # expected_rate: 10.0                      # Hz
+      # rate_tolerance: 0.3                      # 30% deviation allowed (default)
+
     # define "running" instances of plugins, there can be multiple instances of the same plugin
     CameraHandler:
-      name: "Gazebo Camera"
       type: "Camera"
       address: "mrs_robot_diagnostics/CameraHandler"
       topic: "/servo_camera/"
 
+    # Using generic handler 
     PX4:
-       name: "PX4"
-       type: "Autopilot" # Autopilot, Camera, Lidar, IMU, GPS, Battery, Barometer, Magnetometer, RangeFinder
+       type: "Autopilot"
        address: "mrs_robot_diagnostics/GenericSensorHandler"
-       topic: "hw_api/status" # Don't add the leading slash, the name will be resolved relative to the node's namespace 
+       topic: "hw_api/status"
        message_type: "mrs_msgs/msg/HwApiStatus"
        qos_reliability: "reliable"              # QoS reliability setting (default: "reliable")
        expected_rate: 100.0                     # Hz
        rate_tolerance: 0.3                      # 30% deviation allowed (default)
 
     Rangefinder:
-       name: "Rangefinder"
-       type: "Rangefinder" # Autopilot, Camera, Lidar, IMU, GPS, Battery, Barometer, Magnetometer, RangeFinder
+       type: "Rangefinder"
        address: "mrs_robot_diagnostics/GenericSensorHandler"
-       topic: "hw_api/distance_sensor" # Don't add the leading slash, the name will be resolved relative to the node's namespace 
+       topic: "hw_api/distance_sensor"
        message_type: "sensor_msgs/msg/Range"
-       qos_reliability: "reliable"              # QoS reliability setting (default: "reliable")
-       expected_rate: 100.0                     # Hz
-       rate_tolerance: 0.3                      # 30% deviation allowed (default)
+       qos_reliability: "reliable"
+       expected_rate: 100.0
+       rate_tolerance: 0.3
 
     GPS:
-       name: "GPS"
-       type: "GPS" # Autopilot, Camera, Lidar, IMU, GPS, Battery, Barometer, Magnetometer, RangeFinder
+       type: "GPS"
        address: "mrs_robot_diagnostics/GPSHandler"
-       topic: "hw_api/gnss" # Don't add the leading slash, the name will be resolved relative to the node's namespace 
-       qos_reliability: "reliable"             # QoS reliability setting (default: "reliable")
-       expected_rate: 50.0                     # Hz
-       rate_tolerance: 0.3                      # 30% deviation allowed (default)
+       topic: "hw_api/gnss"
+       qos_reliability: "reliable"
+       expected_rate: 50.0
+       rate_tolerance: 0.3
+
+    Magnetometer:
+       type: "Magnetometer"
+       address: "mrs_robot_diagnostics/MagnetometerHandler"
+       topic: "hw_api/magnetic_field"
+       qos_reliability: "reliable"
+       expected_rate: 50.0
+       rate_tolerance: 0.3
+
+    RemoteController:
+        type: "RemoteController"
+        address: "mrs_robot_diagnostics/RCHandler"
+        topic: "hw_api/rc_rssi"
+        qos_reliability: "reliable"
+        expected_rate: 10.0
+        rate_tolerance: 0.3

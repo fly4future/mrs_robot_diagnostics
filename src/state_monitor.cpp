@@ -302,6 +302,8 @@ void StateMonitor::timerMain() {
   if (hw_api_status.hasNewMessage || uav_status.hasNewMessage || mass_nominal.hasNewMessage || mass_estimate.hasNewMessage)
     last_uav_info_ = parse_uav_info(hw_api_status.message, uav_status.message, mass_nominal.message, mass_estimate.message);
 
+  // Remove update gating on uav_status for system health info, since it contains sensor diagnostics data, which we want to share even if uav_status is not
+  // updating
   last_system_health_info_ = parse_system_health_info(uav_status.message);
 
   ph_general_robot_info_.publish(last_general_robot_info_);
@@ -749,6 +751,8 @@ mrs_msgs::msg::SystemHealthInfo StateMonitor::parse_system_health_info(mrs_msgs:
     msg.onboard_computer_info.wifi_link_quality = wifi.link_quality;
   }
 
+  std::scoped_lock lck(mutex_sensor_handler_list_);
+  // Get sensor status from handlers
   msg.available_sensors = available_sensors_;
 
   return msg;

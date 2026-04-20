@@ -724,16 +724,16 @@ mrs_msgs::msg::SystemHealthInfo StateMonitor::parse_system_health_info(mrs_msgs:
   const bool is_uav_status_valid = uav_status != nullptr;
 
   if (is_uav_status_valid) {
-    msg.cpu_load   = uav_status->cpu_load;
-    msg.free_ram   = uav_status->free_ram;
-    msg.total_ram  = uav_status->total_ram;
-    msg.free_hdd   = uav_status->free_hdd;
-    const size_t n = std::min(uav_status->node_cpu_loads.cpu_loads.size(), uav_status->node_cpu_loads.node_names.size());
+    msg.onboard_computer_info.cpu_load  = uav_status->cpu_load;
+    msg.onboard_computer_info.free_ram  = uav_status->free_ram;
+    msg.onboard_computer_info.total_ram = uav_status->total_ram;
+    msg.onboard_computer_info.free_hdd  = uav_status->free_hdd;
+    const size_t n                      = std::min(uav_status->node_cpu_loads.cpu_loads.size(), uav_status->node_cpu_loads.node_names.size());
     for (size_t it = 0; it < n; it++) {
       mrs_msgs::msg::CpuLoad node_cpu_load;
       node_cpu_load.node_name = uav_status->node_cpu_loads.node_names.at(it);
       node_cpu_load.cpu_load  = uav_status->node_cpu_loads.cpu_loads.at(it);
-      msg.node_cpu_loads.push_back(node_cpu_load);
+      msg.onboard_computer_info.node_cpu_loads.push_back(node_cpu_load);
     }
 
     msg.hw_api_rate           = uav_status->hw_api_hz;
@@ -744,9 +744,9 @@ mrs_msgs::msg::SystemHealthInfo StateMonitor::parse_system_health_info(mrs_msgs:
   // Get Wifi info from the system
   const auto wifi = readWifiInfo();
   if (!wifi.interface.empty()) {
-    msg.wifi_interface    = wifi.interface;
-    msg.wifi_signal_dbm   = wifi.signal_dbm;
-    msg.wifi_link_quality = wifi.link_quality;
+    msg.onboard_computer_info.wifi_interface    = wifi.interface;
+    msg.onboard_computer_info.wifi_signal_dbm   = wifi.signal_dbm;
+    msg.onboard_computer_info.wifi_link_quality = wifi.link_quality;
   }
 
   msg.available_sensors = available_sensors_;

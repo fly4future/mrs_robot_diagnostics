@@ -277,7 +277,8 @@ void StateMonitor::timerMain() {
   const auto       mass_estimate                  = processIncomingMessage(sh_mass_estimate_);
   const auto       mass_nominal                   = processIncomingMessage(sh_mass_nominal_);
   const auto       mpc_tracker_diagnostics        = processIncomingMessage(sh_mpc_tracker_diagnostics_);
-  const auto       uav_status                     = processIncomingMessage(sh_uav_status_);
+  // TODO: uav status will be refactored, we will get the data directly
+  const auto uav_status = processIncomingMessage(sh_uav_status_);
 
   if (hw_api_status.hasNewMessage || control_manager_diagnostics.hasNewMessage) {
     const auto new_state = parse_uav_state(hw_api_status.message, control_manager_diagnostics.message);
@@ -301,8 +302,7 @@ void StateMonitor::timerMain() {
   if (hw_api_status.hasNewMessage || uav_status.hasNewMessage || mass_nominal.hasNewMessage || mass_estimate.hasNewMessage)
     last_uav_info_ = parse_uav_info(hw_api_status.message, uav_status.message, mass_nominal.message, mass_estimate.message);
 
-  if (uav_status.hasNewMessage)
-    last_system_health_info_ = parse_system_health_info(uav_status.message);
+  last_system_health_info_ = parse_system_health_info(uav_status.message);
 
   ph_general_robot_info_.publish(last_general_robot_info_);
   ph_state_estimation_info_.publish(last_state_estimation_info_);

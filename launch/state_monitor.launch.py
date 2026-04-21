@@ -171,7 +171,6 @@ def generate_launch_description():
             ("~/uav_info_out", "~/uav_info"),
             ("~/uav_state_out", "~/uav_state"),
             # subscribers
-            ("~/automatic_start_can_takeoff_in", "automatic_start/can_takeoff"),
             ("~/battery_state_in", "hw_api/battery_state"),
             ("~/control_manager_diagnostics_in", "control_manager/diagnostics"),
             ("~/control_manager_heading_in", "control_manager/heading"),

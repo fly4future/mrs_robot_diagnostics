@@ -196,7 +196,6 @@ void StateMonitor::initialize() {
   // | -------------------- GeneralRobotInfo -------------------- |
   ph_general_robot_info_          = mrs_lib::PublisherHandler<mrs_msgs::msg::GeneralRobotInfo>(node_, "~/general_robot_info_out");
   sh_battery_state_               = mrs_lib::SubscriberHandler<sensor_msgs::msg::BatteryState>(shopts, "~/battery_state_in");
-  sh_automatic_start_can_takeoff_ = mrs_lib::SubscriberHandler<std_msgs::msg::Bool>(shopts, "~/automatic_start_can_takeoff_in", mrs_lib::no_timeout);
 
   // | ------------------- StateEstimationInfo ------------------ |
   ph_state_estimation_info_   = mrs_lib::PublisherHandler<mrs_msgs::msg::StateEstimationInfo>(node_, "~/state_estimation_info_out");
@@ -741,17 +740,21 @@ mrs_msgs::msg::GeneralRobotInfo StateMonitor::parse_general_robot_info([[maybe_u
   msg.robot_type       = static_cast<int>(robot_type_);
   msg.robot_ip_address = robot_ip_address_;
 
-  const bool autostart_running = sh_automatic_start_can_takeoff_.getNumPublishers();
-  const bool autostart_ready   = sh_automatic_start_can_takeoff_.hasMsg() && sh_automatic_start_can_takeoff_.getMsg()->data;
-
-  const auto uav_state = uav_state_.value();
-
+  const auto uav_state      = uav_state_.value();
   const bool state_offboard = uav_state == state_t::OFFBOARD;
-  msg.ready_to_start        = state_offboard && autostart_running && autostart_ready;
+
   msg.problems_preventing_start.clear();
 
-  // If not flying, check what is preventing the start and add it to the message.
-  // If flying, we can assume everything was fine at takeoff, so no need to check for problems preventing start
+  bool ready = false;
+
+  if (preflight_cfg_.enabled) {
+    ready = state_offboard && preflight.can_takeoff;
+  }
+
+  msg.ready_to_start = ready;
+
+  // If not flying, explain why we're not ready. When flying autonomously, we
+  // assume everything was fine at takeoff and skip the diagnosis.
   if (!is_flying_autonomously(uav_state)) {
     switch (uav_state) {
       case state_t::UNKNOWN:
@@ -764,38 +767,18 @@ mrs_msgs::msg::GeneralRobotInfo StateMonitor::parse_general_robot_info([[maybe_u
         msg.problems_preventing_start.emplace_back("UAV is DISARMED");
         break;
       case state_t::OFFBOARD:
-        // In OFFBOARD but not flying — autostart checks below will explain why
+        // state_offboard handled below by preflight / autostart reporting
         break;
       default:
         msg.problems_preventing_start.emplace_back("UAV is not in OFFBOARD mode");
         break;
     }
 
-    if (state_offboard && !autostart_running)
-      msg.problems_preventing_start.emplace_back("Automatic start node is not running");
-    else if (state_offboard && !autostart_ready) {
-      // Find the root cause of autostart not being ready
-      std::scoped_lock lck(errorgraph_mtx_);
-      const auto       dependency_roots = errorgraph_.find_dependency_roots(autostart_node_id_);
-      if (dependency_roots.empty()) {
-        msg.problems_preventing_start.emplace_back("Automatic start reports UAV not ready");
-      } else {
-        for (const auto &root : dependency_roots) {
-          // For each root, check if it's an node error or a missing topic and add it to the problems preventing start
-          std::visit(
-              [&msg](const auto &info) {
-                using T = std::decay_t<decltype(info)>;
-                if constexpr (std::is_same_v<T, mrs_lib::errorgraph::Errorgraph::node_info_t>) {
-                  // If it's a node error, add all errors of the node to the problems preventing start
-                  for (const auto &error : info.errors)
-                    msg.problems_preventing_start.push_back(error.type);
-                } else {
-                  // If it's a missing topic, add the topic name to the problems preventing start
-                  msg.problems_preventing_start.push_back("waiting for topic: " + info.topic_name);
-                }
-              },
-              root);
-        }
+    if (state_offboard) {
+      if (preflight_cfg_.enabled) {
+        // Add the preflight check violations 
+        for (const auto &v : preflight.violations)
+          msg.problems_preventing_start.push_back(v);
       }
     }
   }

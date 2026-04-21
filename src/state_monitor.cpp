@@ -98,7 +98,7 @@ void StateMonitor::initialize() {
   const auto state_timer_rate     = param_loader.loadParam2<double>("robot_diagnostics/state_timer_rate");
   not_reporting_delay_            = param_loader.loadParam2<rclcpp::Duration>("robot_diagnostics/not_reporting_delay");
 
-  // preflight check configuration (mirrors mrs_uav_autostart/config/public/automatic_start.yaml)
+  // preflight check configuration
   param_loader.loadParam("robot_diagnostics/preflight_check/enabled", preflight_cfg_.enabled, false);
   param_loader.loadParam("robot_diagnostics/preflight_check/time_window", preflight_cfg_.time_window, 5.0);
 
@@ -241,7 +241,7 @@ void StateMonitor::initialize() {
     for (size_t i = 0; i < preflight_cfg_.topic_check_topics.size(); ++i) {
       const std::string &entry = preflight_cfg_.topic_check_topics.at(i);
 
-      // entries are "name:type" (same format as mrs_uav_autostart)
+      // entries are "name:type"
       const auto colon = entry.find(':');
       if (colon == std::string::npos || colon == 0 || colon == entry.size() - 1) {
         RCLCPP_WARN(node_->get_logger(), "preflight topic_check: malformed entry '%s' (expected 'name:type'), skipping", entry.c_str());
@@ -628,7 +628,7 @@ bool StateMonitor::preflightCheckHeight(std::string &violation) {
   if (!caps->produces_distance_sensor)
     return true;
 
-  // HW claims a sensor but we haven't heard from it yet — mirror autostart's pass-through behavior.
+  // HW claims a sensor but we haven't heard from it yet
   if (!sh_hw_api_distance_sensor_.hasMsg())
     return true;
 
@@ -702,34 +702,34 @@ bool StateMonitor::preflightCheckTopics(std::vector<std::string> &violations) {
 }
 
 StateMonitor::PreflightResult StateMonitor::runPreflightChecks() {
-  PreflightResult r;
+  PreflightResult result;
 
   if (!preflight_cfg_.enabled)
-    return r; // all ok, can_takeoff=true — legacy path relies on autostart signal
+    return result;
 
   std::string speed_violation, height_violation, gyro_violation;
-  r.speed_ok  = preflightCheckSpeed(speed_violation);
-  r.height_ok = preflightCheckHeight(height_violation);
-  r.gyro_ok   = preflightCheckGyro(gyro_violation);
-  r.topics_ok = preflightCheckTopics(r.violations);
+  result.speed_ok  = preflightCheckSpeed(speed_violation);
+  result.height_ok = preflightCheckHeight(height_violation);
+  result.gyro_ok   = preflightCheckGyro(gyro_violation);
+  result.topics_ok = preflightCheckTopics(result.violations);
 
-  if (!r.speed_ok)
-    r.violations.push_back(speed_violation);
-  if (!r.height_ok)
-    r.violations.push_back(height_violation);
-  if (!r.gyro_ok)
-    r.violations.push_back(gyro_violation);
+  if (!result.speed_ok)
+    result.violations.push_back(speed_violation);
+  if (!result.height_ok)
+    result.violations.push_back(height_violation);
+  if (!result.gyro_ok)
+    result.violations.push_back(gyro_violation);
 
-  // Position validity from safety area manager (same signal autostart uses).
+  // Position validity from safety area manager 
   if (sh_safety_area_manager_diagnostics_.hasMsg()) {
-    r.position_valid = sh_safety_area_manager_diagnostics_.getMsg()->position_valid_2d;
+    result.position_valid = sh_safety_area_manager_diagnostics_.getMsg()->position_valid_2d;
   } else {
-    r.position_valid = false;
-    r.violations.emplace_back("preflight position: safety_area_manager diagnostics not received");
+    result.position_valid = false;
+    result.violations.emplace_back("preflight position: safety_area_manager diagnostics not received");
   }
 
-  r.can_takeoff = r.speed_ok && r.height_ok && r.gyro_ok && r.topics_ok && r.position_valid;
-  return r;
+  result.can_takeoff = result.speed_ok && result.height_ok && result.gyro_ok && result.topics_ok && result.position_valid;
+  return result;
 }
 
 mrs_msgs::msg::GeneralRobotInfo StateMonitor::parse_general_robot_info([[maybe_unused]] sensor_msgs::msg::BatteryState::ConstSharedPtr battery_state,
@@ -767,7 +767,7 @@ mrs_msgs::msg::GeneralRobotInfo StateMonitor::parse_general_robot_info([[maybe_u
         msg.problems_preventing_start.emplace_back("UAV is DISARMED");
         break;
       case state_t::OFFBOARD:
-        // state_offboard handled below by preflight / autostart reporting
+        // state_offboard handled below by preflight 
         break;
       default:
         msg.problems_preventing_start.emplace_back("UAV is not in OFFBOARD mode");

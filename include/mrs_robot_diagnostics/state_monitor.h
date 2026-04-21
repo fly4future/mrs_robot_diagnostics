@@ -30,9 +30,11 @@
 #include <mrs_msgs/msg/gain_manager_diagnostics.hpp>
 #include <mrs_msgs/msg/general_robot_info.hpp>
 #include <mrs_msgs/msg/gps_info.hpp>
+#include <mrs_msgs/msg/hw_api_capabilities.hpp>
 #include <mrs_msgs/msg/hw_api_rc_rssi.hpp>
 #include <mrs_msgs/msg/hw_api_status.hpp>
 #include <mrs_msgs/msg/mpc_tracker_diagnostics.hpp>
+#include <mrs_msgs/msg/safety_area_manager_diagnostics.hpp>
 #include <mrs_msgs/msg/sensor_status.hpp>
 #include <mrs_msgs/msg/state_estimation_info.hpp>
 #include <mrs_msgs/msg/system_health_info.hpp>
@@ -43,8 +45,10 @@
 
 #include <std_msgs/msg/bool.hpp>
 #include <sensor_msgs/msg/battery_state.hpp>
+#include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/nav_sat_fix.hpp>
 #include <sensor_msgs/msg/magnetic_field.hpp>
+#include <sensor_msgs/msg/range.hpp>
 
 #include <mrs_lib/errorgraph/errorgraph.h>
 #include <mrs_lib/mutex.h>
@@ -105,7 +109,6 @@ public:
   };
 
 private:
-
   rclcpp::Node::SharedPtr  node_;
   rclcpp::Clock::SharedPtr clock_;
 
@@ -180,6 +183,71 @@ private:
   mrs_lib::SubscriberHandler<mrs_msgs::msg::UavStatus>   sh_uav_status_;
   mrs_lib::SubscriberHandler<std_msgs::msg::Float64>     sh_mass_nominal_;
   mrs_lib::SubscriberHandler<std_msgs::msg::Float64>     sh_mass_estimate_;
+
+  // | --------------------- Preflight checks ------------------- |
+  mrs_lib::SubscriberHandler<mrs_msgs::msg::HwApiCapabilities>            sh_hw_api_capabilities_;
+  mrs_lib::SubscriberHandler<sensor_msgs::msg::Range>                     sh_hw_api_distance_sensor_;
+  mrs_lib::SubscriberHandler<sensor_msgs::msg::Imu>                       sh_hw_api_imu_;
+  mrs_lib::SubscriberHandler<mrs_msgs::msg::SafetyAreaManagerDiagnostics> sh_safety_area_manager_diagnostics_;
+
+  /** @brief Static configuration for the preflight check suite. */
+  struct PreflightConfig
+  {
+    bool   enabled     = false;
+    double time_window = 5.0;
+
+    bool   speed_check_enabled = false;
+    double speed_check_max     = 0.0;
+
+    bool   height_check_enabled = false;
+    double height_check_max     = 0.0;
+
+    bool   gyro_check_enabled = false;
+    double gyro_check_max     = 0.0;
+
+    bool                     topic_check_enabled = false;
+    double                   topic_check_timeout = 0.0;
+    std::vector<std::string> topic_check_topics; // "name[:type]" entries
+  };
+  PreflightConfig preflight_cfg_;
+
+  /** @brief Per-check timestamp of the last observed violation (0 = none). */
+  rclcpp::Time speed_check_violated_time_;
+  rclcpp::Time height_check_violated_time_;
+  rclcpp::Time gyro_check_violated_time_;
+
+  /** @brief Tracks last-message time for one topic in the generic topic_check. */
+  struct TopicHeartbeat
+  {
+    std::string  name;
+    rclcpp::Time last_msg_time;
+  };
+  std::vector<TopicHeartbeat>                         topic_heartbeats_;
+  std::vector<rclcpp::GenericSubscription::SharedPtr> topic_check_subs_;
+
+  /** @brief Result of running the full preflight check suite. */
+  struct PreflightResult
+  {
+    bool                     speed_ok       = true;
+    bool                     height_ok      = true;
+    bool                     gyro_ok        = true;
+    bool                     topics_ok      = true;
+    bool                     position_valid = true;
+    bool                     can_takeoff    = true; ///< AND of all individual checks
+    std::vector<std::string> violations;            ///< human-readable failure reasons
+  };
+
+  /** @brief Run speed / height / gyro / topic / position checks; updates debounce timestamps. */
+  PreflightResult runPreflightChecks();
+
+  /** @brief Individual per-check helpers (ported from mrs_uav_autostart). */
+  bool preflightCheckSpeed(std::string &violation);
+  bool preflightCheckHeight(std::string &violation);
+  bool preflightCheckGyro(std::string &violation);
+  bool preflightCheckTopics(std::vector<std::string> &violations);
+
+  /** @brief Generic callback that marks a heartbeat topic as seen. */
+  void genericTopicCallback(const std::shared_ptr<rclcpp::SerializedMessage> msg, size_t id);
 
   // | -------------------- SystemHealthInfo -------------------- |
   mrs_lib::PublisherHandler<mrs_msgs::msg::SystemHealthInfo>  ph_system_health_info_;
@@ -275,8 +343,8 @@ private:
   state_t parse_uav_state(mrs_msgs::msg::HwApiStatus::ConstSharedPtr               hw_api_status,
                           mrs_msgs::msg::ControlManagerDiagnostics::ConstSharedPtr control_manager_diagnostics);
 
-  /** @brief Build GeneralRobotInfo from battery state, autostart status, and error graph. */
-  mrs_msgs::msg::GeneralRobotInfo parse_general_robot_info(sensor_msgs::msg::BatteryState::ConstSharedPtr battery_state);
+  /** @brief Build GeneralRobotInfo from battery state, preflight result, autostart status, and error graph. */
+  mrs_msgs::msg::GeneralRobotInfo parse_general_robot_info(sensor_msgs::msg::BatteryState::ConstSharedPtr battery_state, const PreflightResult &preflight);
 
   /** @brief Build StateEstimationInfo from estimation diagnostics, headings, and GNSS. */
   mrs_msgs::msg::StateEstimationInfo parse_state_estimation_info(mrs_msgs::msg::EstimationDiagnostics::ConstSharedPtr estimation_diagnostics,

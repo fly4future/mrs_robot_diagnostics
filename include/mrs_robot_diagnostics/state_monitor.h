@@ -228,12 +228,12 @@ private:
   /** @brief Result of running the full preflight check suite. */
   struct PreflightResult
   {
-    bool                     speed_ok       = true;
-    bool                     height_ok      = true;
-    bool                     gyro_ok        = true;
-    bool                     topics_ok      = true;
-    bool                     position_valid = true;
-    bool                     can_takeoff    = true; ///< AND of all individual checks
+    bool                     speed_ok       = false;
+    bool                     height_ok      = false;
+    bool                     gyro_ok        = false;
+    bool                     topics_ok      = false;
+    bool                     position_valid = false;
+    bool                     can_takeoff    = false; ///< AND of all individual checks
     std::vector<std::string> violations;            ///< human-readable failure reasons
   };
 
@@ -308,6 +308,12 @@ private:
   /** @brief Polls all sensor handler plugins and updates available_sensors_. */
   void timerUpdateSensorStatus();
 
+  std::shared_ptr<TimerType> timer_preflight_checks_;
+  /** @brief Runs preflight checks and updates GeneralRobotInfo with results. */
+  void                          timerPreflightChecks();
+  StateMonitor::PreflightResult preflight_result_;       ///< cached result of the latest preflight check run
+  std::mutex                    preflight_result_mutex_; ///< guards preflight_result_ across timer and subscriber callbacks
+
   // | ------------------------ Callbacks ----------------------- |
 
   /** @brief Callback for incoming error graph elements from other nodes. */
@@ -344,7 +350,7 @@ private:
                           mrs_msgs::msg::ControlManagerDiagnostics::ConstSharedPtr control_manager_diagnostics);
 
   /** @brief Build GeneralRobotInfo from battery state, preflight result, autostart status, and error graph. */
-  mrs_msgs::msg::GeneralRobotInfo parse_general_robot_info(sensor_msgs::msg::BatteryState::ConstSharedPtr battery_state, const PreflightResult &preflight);
+  mrs_msgs::msg::GeneralRobotInfo parse_general_robot_info(sensor_msgs::msg::BatteryState::ConstSharedPtr battery_state);
 
   /** @brief Build StateEstimationInfo from estimation diagnostics, headings, and GNSS. */
   mrs_msgs::msg::StateEstimationInfo parse_state_estimation_info(mrs_msgs::msg::EstimationDiagnostics::ConstSharedPtr estimation_diagnostics,

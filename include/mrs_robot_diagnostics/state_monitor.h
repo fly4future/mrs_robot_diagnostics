@@ -150,7 +150,6 @@ private:
   // | -------------------- GeneralRobotInfo -------------------- |
   mrs_lib::PublisherHandler<mrs_msgs::msg::GeneralRobotInfo> ph_general_robot_info_;
   mrs_msgs::msg::GeneralRobotInfo                            last_general_robot_info_;
-  mrs_lib::SubscriberHandler<std_msgs::msg::Bool>            sh_automatic_start_can_takeoff_;
   mrs_lib::SubscriberHandler<sensor_msgs::msg::BatteryState> sh_battery_state_;
 
   // | ------------------- StateEstimationInfo ------------------ |
@@ -207,8 +206,9 @@ private:
 
     bool                     topic_check_enabled = false;
     double                   topic_check_timeout = 0.0;
-    std::vector<std::string> topic_check_topics; // "name[:type]" entries
+    std::vector<std::string> topic_check_topics; // "name:type" entries
   };
+
   PreflightConfig preflight_cfg_;
 
   /** @brief Per-check timestamp of the last observed violation (0 = none). */
@@ -234,7 +234,7 @@ private:
     bool                     topics_ok      = false;
     bool                     position_valid = false;
     bool                     can_takeoff    = false; ///< AND of all individual checks
-    std::vector<std::string> violations;            ///< human-readable failure reasons
+    std::vector<std::string> violations;             ///< human-readable failure reasons
   };
 
   /** @brief Run speed / height / gyro / topic / position checks; updates debounce timestamps. */
@@ -349,7 +349,7 @@ private:
   state_t parse_uav_state(mrs_msgs::msg::HwApiStatus::ConstSharedPtr               hw_api_status,
                           mrs_msgs::msg::ControlManagerDiagnostics::ConstSharedPtr control_manager_diagnostics);
 
-  /** @brief Build GeneralRobotInfo from battery state, preflight result, autostart status, and error graph. */
+  /** @brief Build GeneralRobotInfo from battery state, preflight result used to populate ready_to_start and problems_preventing_start fields. */
   mrs_msgs::msg::GeneralRobotInfo parse_general_robot_info(sensor_msgs::msg::BatteryState::ConstSharedPtr battery_state);
 
   /** @brief Build StateEstimationInfo from estimation diagnostics, headings, and GNSS. */

@@ -771,6 +771,9 @@ mrs_msgs::msg::GeneralRobotInfo StateMonitor::parse_general_robot_info([[maybe_u
     if (preflight_cfg_.enabled) {
       // Preflight result being filled in timerPreflightChecks
       ready = state_offboard && preflight_result_.can_takeoff;
+    } else {
+      // If preflight checks are disabled, we consider the system ready if it's in OFFBOARD mode, otherwise we rely on the UAV state diagnosis below
+      ready = state_offboard;
     }
 
     msg.ready_to_start = ready;

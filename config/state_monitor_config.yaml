@@ -9,8 +9,7 @@ robot_diagnostics:
   # on the autostart node being alive).
   preflight_check:
 
-    # Master switch. When false, state_monitor skips all checks below and
-    # falls back to the legacy autostart can_takeoff signal.
+    # When false, state_monitor skips all checks
     enabled: true
 
     # All conditions must hold for the last <time_window> seconds before

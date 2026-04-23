@@ -4,71 +4,31 @@ robot_diagnostics:
   state_timer_rate: 100.0 # [Hz]
   not_reporting_delay: 3.0 # [s]
 
-  # Ground-side pre-flight checks, mirrored from mrs_uav_autostart so that
-  # state_monitor can report takeoff readiness on its own (without depending
-  # on the autostart node being alive).
-  preflight_check:
-
-    # When false, state_monitor skips all checks
-    enabled: true
-
-    # All conditions must hold for the last <time_window> seconds before
-    # the corresponding check is considered passing.
-    time_window: 5.0 # [s]
-
-    # Takeoff not allowed if the estimated speed exceeds <max_speed>.
-    speed_check:
-      enabled: true
-      max_speed: 0.3 # [m/s]
-
-    # Takeoff not allowed if the distance sensor reads above <max_height>.
-    # Gated by hw_api/capabilities.produces_distance_sensor.
-    height_check:
-      enabled: true
-      max_height: 0.8 # [m]
-
-    # Takeoff not allowed if any gyro axis exceeds <max_rate>.
-    # Gated by hw_api/capabilities.produces_imu.
-    gyro_check:
-      enabled: true
-      max_rate: 1.0 # [rad/s]
-
-    # Generic liveness check for arbitrary topics (e.g. heartbeats from
-    # other nodes). Topics whose names do not start with "/" are prefixed
-    # with /<robot_name>/ automatically.
-    topic_check:
-      enabled: true
-      timeout: 5.0 # [s] allowed gap between messages
-      topics: [
-        "estimation_manager/uav_state:mrs_msgs/msg/UavState",
-        "control_manager/diagnostics:mrs_msgs/msg/ControlManagerDiagnostics",
-      ]
-
   sensor_handlers:
     # the rate at which the sensor handlers will be updated, this is the rate at which the diagnostics will be published
     update_timer_rate: 1.0 # [Hz]
     # the list of sensors to monitor
     sensor_handler_names: [
-      # Example sensor handlers
-      "PX4",
-      "Rangefinder",
-      "GPS",
-      "Magnetometer",
-      "RemoteController",
-      # "LidarHandler",
-      # "IMUHandler",
-      # "BatteryHandler",
-      # "RangeFinderHandler",
-    ]
+        # Example sensor handlers
+        "PX4",
+        "Rangefinder",
+        "GPS",
+        "Magnetometer",
+        "RemoteController",
+        # "LidarHandler",
+        # "IMUHandler",
+        # "BatteryHandler",
+        # "RangeFinderHandler",
+      ]
 
     # ExampleHandler:
-      # type: "Example" # Example, Autopilot, Camera, Lidar, IMU, GPS, Battery, Barometer, Magnetometer, RangeFinder
-      # address: "mrs_robot_diagnostics/ExampleHandler"
-      # topic: "example_node/topic" # Don't add the leading slash, the name will be resolved relative to the node's namespace 
-      # message_type: "std_msgs/msg/String"
-      # qos_reliability: "reliable"              # QoS reliability setting (default: "reliable")
-      # expected_rate: 10.0                      # Hz
-      # rate_tolerance: 0.3                      # 30% deviation allowed (default)
+    # type: "Example" # Example, Autopilot, Camera, Lidar, IMU, GPS, Battery, Barometer, Magnetometer, RangeFinder
+    # address: "mrs_robot_diagnostics/ExampleHandler"
+    # topic: "example_node/topic" # Don't add the leading slash, the name will be resolved relative to the node's namespace
+    # message_type: "std_msgs/msg/String"
+    # qos_reliability: "reliable"              # QoS reliability setting (default: "reliable")
+    # expected_rate: 10.0                      # Hz
+    # rate_tolerance: 0.3                      # 30% deviation allowed (default)
 
     # define "running" instances of plugins, there can be multiple instances of the same plugin
     CameraHandler:
@@ -76,45 +36,45 @@ robot_diagnostics:
       address: "mrs_robot_diagnostics/CameraHandler"
       topic: "/servo_camera/"
 
-    # Using generic handler 
+    # Using generic handler
     PX4:
-       type: "Autopilot"
-       address: "mrs_robot_diagnostics/GenericSensorHandler"
-       topic: "hw_api/status"
-       message_type: "mrs_msgs/msg/HwApiStatus"
-       qos_reliability: "reliable"              # QoS reliability setting (default: "reliable")
-       expected_rate: 100.0                     # Hz
-       rate_tolerance: 0.3                      # 30% deviation allowed (default)
+      type: "Autopilot"
+      address: "mrs_robot_diagnostics/GenericSensorHandler"
+      topic: "hw_api/status"
+      message_type: "mrs_msgs/msg/HwApiStatus"
+      qos_reliability: "reliable" # QoS reliability setting (default: "reliable")
+      expected_rate: 100.0 # Hz
+      rate_tolerance: 0.3 # 30% deviation allowed (default)
 
     Rangefinder:
-       type: "Rangefinder"
-       address: "mrs_robot_diagnostics/GenericSensorHandler"
-       topic: "hw_api/distance_sensor"
-       message_type: "sensor_msgs/msg/Range"
-       qos_reliability: "reliable"
-       expected_rate: 100.0
-       rate_tolerance: 0.3
+      type: "Rangefinder"
+      address: "mrs_robot_diagnostics/GenericSensorHandler"
+      topic: "hw_api/distance_sensor"
+      message_type: "sensor_msgs/msg/Range"
+      qos_reliability: "reliable"
+      expected_rate: 100.0
+      rate_tolerance: 0.3
 
     GPS:
-       type: "GPS"
-       address: "mrs_robot_diagnostics/GPSHandler"
-       topic: "hw_api/gnss"
-       qos_reliability: "reliable"
-       expected_rate: 50.0
-       rate_tolerance: 0.3
+      type: "GPS"
+      address: "mrs_robot_diagnostics/GPSHandler"
+      topic: "hw_api/gnss"
+      qos_reliability: "reliable"
+      expected_rate: 50.0
+      rate_tolerance: 0.3
 
     Magnetometer:
-       type: "Magnetometer"
-       address: "mrs_robot_diagnostics/MagnetometerHandler"
-       topic: "hw_api/magnetic_field"
-       qos_reliability: "reliable"
-       expected_rate: 50.0
-       rate_tolerance: 0.3
+      type: "Magnetometer"
+      address: "mrs_robot_diagnostics/MagnetometerHandler"
+      topic: "hw_api/magnetic_field"
+      qos_reliability: "reliable"
+      expected_rate: 50.0
+      rate_tolerance: 0.3
 
     RemoteController:
-        type: "RemoteController"
-        address: "mrs_robot_diagnostics/RCHandler"
-        topic: "hw_api/rc_rssi"
-        qos_reliability: "reliable"
-        expected_rate: 10.0
-        rate_tolerance: 0.3
+      type: "RemoteController"
+      address: "mrs_robot_diagnostics/RCHandler"
+      topic: "hw_api/rc_rssi"
+      qos_reliability: "reliable"
+      expected_rate: 10.0
+      rate_tolerance: 0.3

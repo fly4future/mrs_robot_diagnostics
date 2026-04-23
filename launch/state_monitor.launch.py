@@ -150,6 +150,7 @@ def generate_launch_description():
             {"uav_type": uav_type},
             {"use_sim_time": use_sim_time},
             {'config': this_pkg_path + '/config/state_monitor_config.yaml'},
+            {'preflight_check_config': this_pkg_path + '/config/preflight_check_config.yaml'},
             # additional parameters for camera plugin 
             {'camera_frame': [robot_name, '/servo_camera/camera_frame']},
             {'camera_info_topic': [robot_name, '/servo_camera/camera_info']},

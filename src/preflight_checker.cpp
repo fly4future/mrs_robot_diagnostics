@@ -1,4 +1,5 @@
 #include <mrs_robot_diagnostics/preflight_checker.h>
+#include <sstream>
 
 namespace mrs_robot_diagnostics
 {
@@ -44,6 +45,10 @@ void PreflightChecker::initialize(void) {
   param_loader.loadParam("robot_diagnostics/preflight_check/topic_check/timeout", preflight_cfg_.topic_check_timeout, 5.0);
   param_loader.loadParam("robot_diagnostics/preflight_check/topic_check/topics", preflight_cfg_.topic_check_topics, std::vector<std::string>{});
 
+  if (!param_loader.loadedSuccessfully()) {
+    RCLCPP_ERROR(node_->get_logger(), "Failed to load all parameters for PreflightChecker");
+    return;
+  }
 
   speed_check_violated_time_  = rclcpp::Time(0, 0, clock_->get_clock_type());
   height_check_violated_time_ = rclcpp::Time(0, 0, clock_->get_clock_type());

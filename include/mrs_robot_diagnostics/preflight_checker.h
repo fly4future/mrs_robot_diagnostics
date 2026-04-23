@@ -1,11 +1,14 @@
 #pragma once
 #include <rclcpp/rclcpp.hpp>
-#include <mrs_lib/param_loader.h>
-#include <geometry_msgs/msg/vector3.hpp>
-#include <sensor_msgs/msg/range.hpp>
-#include <sensor_msgs/msg/imu.hpp>
-#include <optional>
 #include <cmath>
+#include <geometry_msgs/msg/vector3.hpp>
+#include <mrs_lib/param_loader.h>
+#include <mutex>
+#include <optional>
+#include <sensor_msgs/msg/imu.hpp>
+#include <sensor_msgs/msg/range.hpp>
+#include <string>
+#include <vector>
 
 namespace mrs_robot_diagnostics
 {
@@ -27,7 +30,7 @@ public:
     bool                     gyro_ok        = true;
     bool                     topics_ok      = true;
     bool                     position_valid = true;
-    bool                     can_takeoff    = true; ///< AND of all individual checks
+    bool                     can_takeoff    = false; ///< AND of all individual checks
     std::vector<std::string> violations;            ///< human-readable failure reasons
   };
 

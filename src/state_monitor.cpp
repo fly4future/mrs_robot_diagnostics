@@ -521,16 +521,12 @@ mrs_msgs::msg::GeneralRobotInfo StateMonitor::parse_general_robot_info([[maybe_u
 
   msg.problems_preventing_start.clear();
 
-  bool ready = false;
-
-  const auto preflight_result = preflight_checker_->runPreflightChecks();
-  ready                       = preflight_result.can_takeoff && state_offboard;
-
-  msg.ready_to_start = ready;
-
   // If not flying, explain why we're not ready. When flying autonomously, we
   // assume everything was fine at takeoff and skip the diagnosis.
   if (!is_flying_autonomously(uav_state)) {
+    const auto preflight_result = preflight_checker_->runPreflightChecks();
+    msg.ready_to_start          = preflight_result.can_takeoff && state_offboard;
+
     switch (uav_state) {
       case state_t::UNKNOWN:
         msg.problems_preventing_start.emplace_back("UAV state is UNKNOWN");

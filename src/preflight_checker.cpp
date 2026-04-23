@@ -6,11 +6,12 @@ namespace mrs_robot_diagnostics
 namespace preflight_checker
 {
 
-PreflightChecker::PreflightChecker(rclcpp::Node::SharedPtr node, rclcpp::CallbackGroup::SharedPtr cbkgrp_subs, const std::string &robot_name)
+PreflightChecker::PreflightChecker(rclcpp::Node::SharedPtr node, const std::string &robot_name)
     : node_(node)
     , clock_(node_->get_clock())
-    , robot_name_(robot_name)
-    , cbkgrp_subs_(cbkgrp_subs) {
+    , robot_name_(robot_name) {
+
+  cbkgrp_subs_ = node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
   initialize();
 }
@@ -31,6 +32,7 @@ void PreflightChecker::initialize(void) {
   // preflight check configuration
   param_loader.loadParam("robot_diagnostics/preflight_check/enabled", preflight_cfg_.enabled, false);
   param_loader.loadParam("robot_diagnostics/preflight_check/time_window", preflight_cfg_.time_window, 5.0);
+  param_loader.loadParam("robot_diagnostics/preflight_check/not_reporting_delay", preflight_cfg_.not_reporting_delay, 3.0);
 
   param_loader.loadParam("robot_diagnostics/preflight_check/speed_check/enabled", preflight_cfg_.speed_check_enabled, false);
   param_loader.loadParam("robot_diagnostics/preflight_check/speed_check/max_speed", preflight_cfg_.speed_check_max, 0.0);
@@ -48,6 +50,32 @@ void PreflightChecker::initialize(void) {
   if (!param_loader.loadedSuccessfully()) {
     RCLCPP_ERROR(node_->get_logger(), "Failed to load all parameters for PreflightChecker");
     return;
+  }
+
+  tim_mgr_ = std::make_shared<mrs_lib::TimeoutManager>(node_, rclcpp::Rate(1.0));
+  mrs_lib::SubscriberHandlerOptions shopts;
+  shopts.node                                = node_;
+  shopts.node_name                           = "StateMonitor";
+  shopts.no_message_timeout                  = rclcpp::Duration(preflight_cfg_.not_reporting_delay, 0);
+  shopts.timeout_manager                     = tim_mgr_;
+  shopts.threadsafe                          = true;
+  shopts.autostart                           = true;
+  shopts.subscription_options.callback_group = cbkgrp_subs_;
+
+  // | --------------------- Preflight checks ------------------- |
+  sh_hw_api_capabilities_             = mrs_lib::SubscriberHandler<mrs_msgs::msg::HwApiCapabilities>(shopts, "~/hw_api_capabilities_in");
+  sh_safety_area_manager_diagnostics_ = mrs_lib::SubscriberHandler<mrs_msgs::msg::SafetyAreaManagerDiagnostics>(shopts, "~/safety_area_manager_diagnostics_in");
+
+  if (preflight_cfg_.speed_check_enabled) {
+    sh_estimation_diagnostics_ = mrs_lib::SubscriberHandler<mrs_msgs::msg::EstimationDiagnostics>(shopts, "~/estimation_diagnostics_in");
+  }
+
+  if (preflight_cfg_.height_check_enabled) {
+    sh_hw_api_distance_sensor_ = mrs_lib::SubscriberHandler<sensor_msgs::msg::Range>(shopts, "~/hw_api_distance_sensor_in");
+  }
+
+  if (preflight_cfg_.gyro_check_enabled) {
+    sh_hw_api_imu_ = mrs_lib::SubscriberHandler<sensor_msgs::msg::Imu>(shopts, "~/hw_api_imu_in");
   }
 
   speed_check_violated_time_  = rclcpp::Time(0, 0, clock_->get_clock_type());
@@ -98,11 +126,58 @@ void PreflightChecker::initialize(void) {
   }
 }
 
+PreflightChecker::PreflightInputs PreflightChecker::collectPreflightData() {
+
+  preflight_checker::PreflightChecker::PreflightInputs preflight_inputs;
+
+  if (sh_estimation_diagnostics_.hasMsg()) {
+    auto                        estimation_diag = sh_estimation_diagnostics_.getMsg();
+    geometry_msgs::msg::Vector3 velocity_msg;
+    velocity_msg.x            = estimation_diag->velocity.linear.x;
+    velocity_msg.y            = estimation_diag->velocity.linear.y;
+    velocity_msg.z            = estimation_diag->velocity.linear.z;
+    preflight_inputs.velocity = velocity_msg;
+  }
+
+  if (sh_hw_api_capabilities_.hasMsg()) {
+    auto hw_api_capabilities             = sh_hw_api_capabilities_.getMsg();
+    preflight_inputs.has_distance_sensor = hw_api_capabilities->produces_distance_sensor;
+    preflight_inputs.has_imu             = hw_api_capabilities->produces_imu;
+  }
+
+  if (sh_hw_api_distance_sensor_.hasMsg()) {
+    auto distance_sensor_msg               = sh_hw_api_distance_sensor_.getMsg();
+    preflight_inputs.distance_sensor_range = *distance_sensor_msg;
+  }
+
+  if (sh_hw_api_imu_.hasMsg()) {
+    auto                        imu_msg = sh_hw_api_imu_.getMsg();
+    geometry_msgs::msg::Vector3 angular_velocity_msg;
+    angular_velocity_msg.x        = imu_msg->angular_velocity.x;
+    angular_velocity_msg.y        = imu_msg->angular_velocity.y;
+    angular_velocity_msg.z        = imu_msg->angular_velocity.z;
+    preflight_inputs.angular_rate = angular_velocity_msg;
+  }
+
+  if (sh_safety_area_manager_diagnostics_.hasMsg()) {
+    auto safety_area_diag           = sh_safety_area_manager_diagnostics_.getMsg();
+    preflight_inputs.position_valid = safety_area_diag->position_valid_2d;
+  }
+
+  return preflight_inputs;
+}
+
+PreflightChecker::PreflightResult PreflightChecker::runPreflightChecks() {
+  return runPreflightChecks(collectPreflightData());
+}
+
 PreflightChecker::PreflightResult PreflightChecker::runPreflightChecks(const PreflightInputs &inputs) {
   PreflightResult result;
 
-  if (!preflight_cfg_.enabled)
+  if (!preflight_cfg_.enabled) {
+    result.can_takeoff = true; // if preflight checks are disabled, we allow takeoff
     return result;
+  }
 
   if (auto speed_check_result = preflightCheckSpeed(inputs.velocity)) {
     result.speed_ok = false;
@@ -143,7 +218,7 @@ std::optional<std::string> PreflightChecker::preflightCheckSpeed(const std::opti
   std::string violation;
 
   if (!velocity.has_value()) {
-    violation = "preflight speed: no velocity received"; 
+    violation = "preflight speed: no velocity received";
     return violation;
   }
 

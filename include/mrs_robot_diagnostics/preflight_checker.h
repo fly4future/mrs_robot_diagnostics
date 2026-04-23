@@ -3,12 +3,17 @@
 #include <cmath>
 #include <geometry_msgs/msg/vector3.hpp>
 #include <mrs_lib/param_loader.h>
+#include <mrs_lib/subscriber_handler.h>
 #include <mutex>
 #include <optional>
 #include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/range.hpp>
 #include <string>
 #include <vector>
+
+#include <mrs_msgs/msg/estimation_diagnostics.hpp>
+#include <mrs_msgs/msg/safety_area_manager_diagnostics.hpp>
+#include <mrs_msgs/msg/hw_api_capabilities.hpp>
 
 namespace mrs_robot_diagnostics
 {
@@ -20,7 +25,7 @@ class PreflightChecker
 
 {
 public:
-  PreflightChecker(rclcpp::Node::SharedPtr node, rclcpp::CallbackGroup::SharedPtr cbkgrp_subs, const std::string &robot_name);
+  PreflightChecker(rclcpp::Node::SharedPtr node, const std::string &robot_name);
 
   /** @brief Result of running the full preflight check suite. */
   struct PreflightResult
@@ -31,7 +36,7 @@ public:
     bool                     topics_ok      = true;
     bool                     position_valid = true;
     bool                     can_takeoff    = false; ///< AND of all individual checks
-    std::vector<std::string> violations;            ///< human-readable failure reasons
+    std::vector<std::string> violations;             ///< human-readable failure reasons
   };
 
   struct PreflightInputs
@@ -45,7 +50,13 @@ public:
     bool                                       position_valid      = false; // from safety area manager diagnostics
   };
 
+  /** @brief Run checks with data collected from the various subscribed topics. */
+  // This is the main entry point for using the PreflightChecker in state monitor
+  PreflightResult runPreflightChecks(void);
+
   /** @brief Run speed / height / gyro / topic / position checks; updates debounce timestamps. */
+  //  Useful for testing individual check logic with custom inputs, without needing to publish to all the relevant topics.
+  //  Overloads the above method that collects data from topics and then calls this one.
   PreflightResult runPreflightChecks(const PreflightInputs &inputs);
 
 private:
@@ -69,8 +80,9 @@ private:
   /** @brief Static configuration for the preflight check suite. */
   struct PreflightConfig
   {
-    bool   enabled     = false;
-    double time_window = 5.0;
+    bool   enabled             = false;
+    double time_window         = 5.0;
+    double not_reporting_delay = 3.0;
 
     bool   speed_check_enabled = false;
     double speed_check_max     = 0.0;
@@ -102,6 +114,17 @@ private:
   std::mutex                                          topic_heartbeats_mutex_;
   std::vector<TopicHeartbeat>                         topic_heartbeats_;
   std::vector<rclcpp::GenericSubscription::SharedPtr> topic_check_subs_;
+
+  /** @brief Gather all inputs for the preflight checks from the various subscribed topics. */
+  PreflightInputs collectPreflightData(void);
+
+  // | ---------------------- ROS subscribers --------------------- |
+  std::shared_ptr<mrs_lib::TimeoutManager>                                tim_mgr_;
+  mrs_lib::SubscriberHandler<mrs_msgs::msg::EstimationDiagnostics>        sh_estimation_diagnostics_;
+  mrs_lib::SubscriberHandler<mrs_msgs::msg::HwApiCapabilities>            sh_hw_api_capabilities_;
+  mrs_lib::SubscriberHandler<sensor_msgs::msg::Range>                     sh_hw_api_distance_sensor_;
+  mrs_lib::SubscriberHandler<sensor_msgs::msg::Imu>                       sh_hw_api_imu_;
+  mrs_lib::SubscriberHandler<mrs_msgs::msg::SafetyAreaManagerDiagnostics> sh_safety_area_manager_diagnostics_;
 };
 
 } // namespace preflight_checker

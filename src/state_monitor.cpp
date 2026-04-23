@@ -98,23 +98,6 @@ void StateMonitor::initialize() {
   const auto state_timer_rate     = param_loader.loadParam2<double>("robot_diagnostics/state_timer_rate");
   not_reporting_delay_            = param_loader.loadParam2<rclcpp::Duration>("robot_diagnostics/not_reporting_delay");
 
-  // preflight check configuration
-  param_loader.loadParam("robot_diagnostics/preflight_check/enabled", preflight_cfg_.enabled, false);
-  param_loader.loadParam("robot_diagnostics/preflight_check/time_window", preflight_cfg_.time_window, 5.0);
-
-  param_loader.loadParam("robot_diagnostics/preflight_check/speed_check/enabled", preflight_cfg_.speed_check_enabled, false);
-  param_loader.loadParam("robot_diagnostics/preflight_check/speed_check/max_speed", preflight_cfg_.speed_check_max, 0.0);
-
-  param_loader.loadParam("robot_diagnostics/preflight_check/height_check/enabled", preflight_cfg_.height_check_enabled, false);
-  param_loader.loadParam("robot_diagnostics/preflight_check/height_check/max_height", preflight_cfg_.height_check_max, 0.0);
-
-  param_loader.loadParam("robot_diagnostics/preflight_check/gyro_check/enabled", preflight_cfg_.gyro_check_enabled, false);
-  param_loader.loadParam("robot_diagnostics/preflight_check/gyro_check/max_rate", preflight_cfg_.gyro_check_max, 0.0);
-
-  param_loader.loadParam("robot_diagnostics/preflight_check/topic_check/enabled", preflight_cfg_.topic_check_enabled, false);
-  param_loader.loadParam("robot_diagnostics/preflight_check/topic_check/timeout", preflight_cfg_.topic_check_timeout, 5.0);
-  param_loader.loadParam("robot_diagnostics/preflight_check/topic_check/topics", preflight_cfg_.topic_check_topics, std::vector<std::string>{});
-
   std::string available_sensors_string;
   param_loader.loadParam("available_sensors", available_sensors_string);
   param_loader.setPrefix("robot_diagnostics/sensor_handlers/");
@@ -230,52 +213,7 @@ void StateMonitor::initialize() {
   sh_hw_api_imu_                      = mrs_lib::SubscriberHandler<sensor_msgs::msg::Imu>(shopts, "~/hw_api_imu_in");
   sh_safety_area_manager_diagnostics_ = mrs_lib::SubscriberHandler<mrs_msgs::msg::SafetyAreaManagerDiagnostics>(shopts, "~/safety_area_manager_diagnostics_in");
 
-  speed_check_violated_time_  = rclcpp::Time(0, 0, clock_->get_clock_type());
-  height_check_violated_time_ = rclcpp::Time(0, 0, clock_->get_clock_type());
-  gyro_check_violated_time_   = rclcpp::Time(0, 0, clock_->get_clock_type());
-
-  if (preflight_cfg_.enabled && preflight_cfg_.topic_check_enabled) {
-    topic_heartbeats_.reserve(preflight_cfg_.topic_check_topics.size());
-    topic_check_subs_.reserve(preflight_cfg_.topic_check_topics.size());
-
-    for (size_t i = 0; i < preflight_cfg_.topic_check_topics.size(); ++i) {
-      const std::string &entry = preflight_cfg_.topic_check_topics.at(i);
-
-      // entries are "name:type"
-      const auto colon = entry.find(':');
-      if (colon == std::string::npos || colon == 0 || colon == entry.size() - 1) {
-        RCLCPP_WARN(node_->get_logger(), "preflight topic_check: malformed entry '%s' (expected 'name:type'), skipping", entry.c_str());
-        continue;
-      }
-
-      std::string topic_name = entry.substr(0, colon);
-      std::string topic_type = entry.substr(colon + 1);
-
-      if (topic_name.empty()) {
-        continue;
-      }
-      if (topic_name.front() != '/') {
-        topic_name = "/" + _robot_name_ + "/" + topic_name;
-      }
-
-      TopicHeartbeat hb;
-      hb.name          = topic_name;
-      hb.last_msg_time = rclcpp::Time(0, 0, clock_->get_clock_type());
-      topic_heartbeats_.push_back(hb);
-
-      const size_t id = topic_heartbeats_.size() - 1;
-
-      rclcpp::SubscriptionOptions sub_opts;
-      sub_opts.callback_group = cbkgrp_subs_;
-
-      std::function<void(std::shared_ptr<rclcpp::SerializedMessage>)> cb = [this, id](std::shared_ptr<rclcpp::SerializedMessage> msg) {
-        this->genericTopicCallback(msg, id);
-      };
-
-      auto sub = node_->create_generic_subscription(topic_name, topic_type, rclcpp::SystemDefaultsQoS(), cb, sub_opts);
-      topic_check_subs_.push_back(sub);
-    }
-  }
+  preflight_checker_ = std::make_unique<preflight_checker::PreflightChecker>(node_, cbkgrp_subs_, _robot_name_);
 
   // | -------------------- SystemHealthInfo -------------------- |
   ph_system_health_info_ = mrs_lib::PublisherHandler<mrs_msgs::msg::SystemHealthInfo>(node_, "~/system_health_info_out");
@@ -468,7 +406,43 @@ void StateMonitor::timerPreflightChecks() {
     return;
   }
 
-  const auto preflight_result = runPreflightChecks();
+  preflight_checker::PreflightChecker::PreflightInputs preflight_inputs;
+
+  if (sh_estimation_diagnostics_.hasMsg()) {
+    auto                        estimation_diag = sh_estimation_diagnostics_.getMsg();
+    geometry_msgs::msg::Vector3 velocity_msg;
+    velocity_msg.x            = estimation_diag->velocity.linear.x;
+    velocity_msg.y            = estimation_diag->velocity.linear.y;
+    velocity_msg.z            = estimation_diag->velocity.linear.z;
+    preflight_inputs.velocity = velocity_msg;
+  }
+
+  if (sh_hw_api_capabilities_.hasMsg()) {
+    auto hw_api_capabilities             = sh_hw_api_capabilities_.getMsg();
+    preflight_inputs.has_distance_sensor = hw_api_capabilities->produces_distance_sensor;
+    preflight_inputs.has_imu             = hw_api_capabilities->produces_imu;
+  }
+
+  if (sh_hw_api_distance_sensor_.hasMsg()) {
+    auto distance_sensor_msg               = sh_hw_api_distance_sensor_.getMsg();
+    preflight_inputs.distance_sensor_range = *distance_sensor_msg;
+  }
+
+  if (sh_hw_api_imu_.hasMsg()) {
+    auto                        imu_msg = sh_hw_api_imu_.getMsg();
+    geometry_msgs::msg::Vector3 angular_velocity_msg;
+    angular_velocity_msg.x        = imu_msg->angular_velocity.x;
+    angular_velocity_msg.y        = imu_msg->angular_velocity.y;
+    angular_velocity_msg.z        = imu_msg->angular_velocity.z;
+    preflight_inputs.angular_rate = angular_velocity_msg;
+  }
+
+  if (sh_safety_area_manager_diagnostics_.hasMsg()) {
+    auto safety_area_diag           = sh_safety_area_manager_diagnostics_.getMsg();
+    preflight_inputs.position_valid = safety_area_diag->position_valid_2d;
+  }
+
+  const auto preflight_result = preflight_checker_->runPreflightChecks(preflight_inputs);
   preflight_result_           = preflight_result;
 }
 
@@ -598,159 +572,6 @@ state_t StateMonitor::parse_uav_state(mrs_msgs::msg::HwApiStatus::ConstSharedPtr
 
 // | -------------------- Preflight checks -------------------- |
 
-void StateMonitor::genericTopicCallback([[maybe_unused]] const std::shared_ptr<rclcpp::SerializedMessage> msg, size_t id) {
-  std::scoped_lock lck(uav_state_mutex_);
-  if (id >= topic_heartbeats_.size())
-    return;
-  topic_heartbeats_.at(id).last_msg_time = clock_->now();
-}
-
-bool StateMonitor::preflightCheckSpeed(std::string &violation) {
-  if (!preflight_cfg_.speed_check_enabled)
-    return true;
-
-  if (!sh_estimation_diagnostics_.hasMsg()) {
-    violation = "preflight speed: estimation_diagnostics not received";
-    return false;
-  }
-
-  const auto   diag  = sh_estimation_diagnostics_.getMsg();
-  const double speed = std::hypot(diag->velocity.linear.x, diag->velocity.linear.y, diag->velocity.linear.z);
-
-  if (std::isnan(speed) || speed > preflight_cfg_.speed_check_max) {
-    speed_check_violated_time_ = clock_->now();
-    std::stringstream ss;
-    ss << "preflight speed: " << speed << " m/s exceeds limit " << preflight_cfg_.speed_check_max << " m/s";
-    violation = ss.str();
-  }
-
-  if (speed_check_violated_time_.seconds() > 0 && (clock_->now() - speed_check_violated_time_).seconds() < preflight_cfg_.time_window) {
-    if (violation.empty())
-      violation = "preflight speed: still within debounce window after last violation";
-    return false;
-  }
-  return true;
-}
-
-bool StateMonitor::preflightCheckHeight(std::string &violation) {
-  if (!preflight_cfg_.height_check_enabled)
-    return true;
-
-  // Without capabilities we can't know if the sensor exists — block.
-  if (!sh_hw_api_capabilities_.hasMsg()) {
-    violation = "preflight height: hw_api capabilities not received";
-    return false;
-  }
-
-  const auto caps = sh_hw_api_capabilities_.getMsg();
-  // Capability gate: if the HW doesn't produce a distance sensor, the check is a no-op (pass).
-  if (!caps->produces_distance_sensor)
-    return true;
-
-  // HW claims a sensor but we haven't heard from it yet
-  if (!sh_hw_api_distance_sensor_.hasMsg())
-    return true;
-
-  const double height = sh_hw_api_distance_sensor_.getMsg()->range;
-
-  if (std::isnan(height) || height > preflight_cfg_.height_check_max) {
-    height_check_violated_time_ = clock_->now();
-    std::stringstream ss;
-    ss << "preflight height: " << height << " m exceeds limit " << preflight_cfg_.height_check_max << " m";
-    violation = ss.str();
-  }
-
-  if (height_check_violated_time_.seconds() > 0 && (clock_->now() - height_check_violated_time_).seconds() < preflight_cfg_.time_window) {
-    if (violation.empty())
-      violation = "preflight height: still within debounce window after last violation";
-    return false;
-  }
-  return true;
-}
-
-bool StateMonitor::preflightCheckGyro(std::string &violation) {
-  if (!preflight_cfg_.gyro_check_enabled)
-    return true;
-
-  if (!sh_hw_api_capabilities_.hasMsg()) {
-    violation = "preflight gyro: hw_api capabilities not received";
-    return false;
-  }
-
-  const auto caps = sh_hw_api_capabilities_.getMsg();
-  if (!caps->produces_imu)
-    return true;
-
-  if (!sh_hw_api_imu_.hasMsg())
-    return true;
-
-  const auto   g   = sh_hw_api_imu_.getMsg()->angular_velocity;
-  const double max = preflight_cfg_.gyro_check_max;
-
-  if (std::isnan(g.x) || std::isnan(g.y) || std::isnan(g.z) || std::abs(g.x) > max || std::abs(g.y) > max || std::abs(g.z) > max) {
-    gyro_check_violated_time_ = clock_->now();
-    std::stringstream ss;
-    ss << "preflight gyro: angular velocity [" << g.x << ", " << g.y << ", " << g.z << "] rad/s exceeds limit " << max << " rad/s";
-    violation = ss.str();
-  }
-
-  if (gyro_check_violated_time_.seconds() > 0 && (clock_->now() - gyro_check_violated_time_).seconds() < preflight_cfg_.time_window) {
-    if (violation.empty())
-      violation = "preflight gyro: still within debounce window after last violation";
-    return false;
-  }
-  return true;
-}
-
-bool StateMonitor::preflightCheckTopics(std::vector<std::string> &violations) {
-  if (!preflight_cfg_.topic_check_enabled)
-    return true;
-
-  bool       all_ok = true;
-  const auto now    = clock_->now();
-
-  for (const auto &hb : topic_heartbeats_) {
-    const bool never_seen = hb.last_msg_time.seconds() == 0;
-    const bool stale      = !never_seen && (now - hb.last_msg_time).seconds() > preflight_cfg_.topic_check_timeout;
-    if (never_seen || stale) {
-      violations.push_back("preflight topic_check: no recent data on " + hb.name);
-      all_ok = false;
-    }
-  }
-  return all_ok;
-}
-
-StateMonitor::PreflightResult StateMonitor::runPreflightChecks() {
-  PreflightResult result;
-
-  if (!preflight_cfg_.enabled)
-    return result;
-
-  std::string speed_violation, height_violation, gyro_violation;
-  result.speed_ok  = preflightCheckSpeed(speed_violation);
-  result.height_ok = preflightCheckHeight(height_violation);
-  result.gyro_ok   = preflightCheckGyro(gyro_violation);
-  result.topics_ok = preflightCheckTopics(result.violations);
-
-  if (!result.speed_ok)
-    result.violations.push_back(speed_violation);
-  if (!result.height_ok)
-    result.violations.push_back(height_violation);
-  if (!result.gyro_ok)
-    result.violations.push_back(gyro_violation);
-
-  // Position validity from safety area manager
-  if (sh_safety_area_manager_diagnostics_.hasMsg()) {
-    result.position_valid = sh_safety_area_manager_diagnostics_.getMsg()->position_valid_2d;
-  } else {
-    result.position_valid = false;
-    result.violations.emplace_back("preflight position: safety_area_manager diagnostics not received");
-  }
-
-  result.can_takeoff = result.speed_ok && result.height_ok && result.gyro_ok && result.topics_ok && result.position_valid;
-  return result;
-}
-
 mrs_msgs::msg::GeneralRobotInfo StateMonitor::parse_general_robot_info([[maybe_unused]] sensor_msgs::msg::BatteryState::ConstSharedPtr battery_state) {
   mrs_msgs::msg::GeneralRobotInfo msg;
   msg.stamp            = clock_->now();
@@ -768,13 +589,7 @@ mrs_msgs::msg::GeneralRobotInfo StateMonitor::parse_general_robot_info([[maybe_u
   std::scoped_lock lck(preflight_result_mutex_);
   {
 
-    if (preflight_cfg_.enabled) {
-      // Preflight result being filled in timerPreflightChecks
-      ready = state_offboard && preflight_result_.can_takeoff;
-    } else {
-      // If preflight checks are disabled, we consider the system ready if it's in OFFBOARD mode, otherwise we rely on the UAV state diagnosis below
-      ready = state_offboard;
-    }
+    ready = preflight_result_.can_takeoff && state_offboard;
 
     msg.ready_to_start = ready;
 
@@ -792,19 +607,14 @@ mrs_msgs::msg::GeneralRobotInfo StateMonitor::parse_general_robot_info([[maybe_u
           msg.problems_preventing_start.emplace_back("UAV is DISARMED");
           break;
         case state_t::OFFBOARD:
-          // state_offboard handled below by preflight
+          // if we're in OFFBOARD mode, but not ready, we can give more insights on why the preflight checks are failing
+          for (const auto &v : preflight_result_.violations)
+            msg.problems_preventing_start.push_back(v);
+
           break;
         default:
           msg.problems_preventing_start.emplace_back("UAV is not in OFFBOARD mode");
           break;
-      }
-
-      if (state_offboard) {
-        if (preflight_cfg_.enabled) {
-          // Add the preflight check violations
-          for (const auto &v : preflight_result_.violations)
-            msg.problems_preventing_start.push_back(v);
-        }
       }
     }
   }

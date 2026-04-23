@@ -67,6 +67,7 @@
 #include <mrs_robot_diagnostics/enums/uav_state.h>
 
 #include <mrs_robot_diagnostics/sensor_handler.h>
+#include <mrs_robot_diagnostics/preflight_checker.h>
 
 #include <limits>
 #include <map>
@@ -117,6 +118,7 @@ private:
   rclcpp::CallbackGroup::SharedPtr cbkgrp_sc_;     ///< callback group for service clients
   rclcpp::CallbackGroup::SharedPtr cbkgrp_timers_; ///< callback group for timers
 
+  std::unique_ptr<preflight_checker::PreflightChecker> preflight_checker_; ///< helper object for performing preflight checks
   /** @brief Load parameters, create subscribers/publishers/timers, initialize plugins. */
   void initialize(void);
 
@@ -189,66 +191,6 @@ private:
   mrs_lib::SubscriberHandler<sensor_msgs::msg::Imu>                       sh_hw_api_imu_;
   mrs_lib::SubscriberHandler<mrs_msgs::msg::SafetyAreaManagerDiagnostics> sh_safety_area_manager_diagnostics_;
 
-  /** @brief Static configuration for the preflight check suite. */
-  struct PreflightConfig
-  {
-    bool   enabled     = false;
-    double time_window = 5.0;
-
-    bool   speed_check_enabled = false;
-    double speed_check_max     = 0.0;
-
-    bool   height_check_enabled = false;
-    double height_check_max     = 0.0;
-
-    bool   gyro_check_enabled = false;
-    double gyro_check_max     = 0.0;
-
-    bool                     topic_check_enabled = false;
-    double                   topic_check_timeout = 0.0;
-    std::vector<std::string> topic_check_topics; // "name:type" entries
-  };
-
-  PreflightConfig preflight_cfg_;
-
-  /** @brief Per-check timestamp of the last observed violation (0 = none). */
-  rclcpp::Time speed_check_violated_time_;
-  rclcpp::Time height_check_violated_time_;
-  rclcpp::Time gyro_check_violated_time_;
-
-  /** @brief Tracks last-message time for one topic in the generic topic_check. */
-  struct TopicHeartbeat
-  {
-    std::string  name;
-    rclcpp::Time last_msg_time;
-  };
-  std::vector<TopicHeartbeat>                         topic_heartbeats_;
-  std::vector<rclcpp::GenericSubscription::SharedPtr> topic_check_subs_;
-
-  /** @brief Result of running the full preflight check suite. */
-  struct PreflightResult
-  {
-    bool                     speed_ok       = false;
-    bool                     height_ok      = false;
-    bool                     gyro_ok        = false;
-    bool                     topics_ok      = false;
-    bool                     position_valid = false;
-    bool                     can_takeoff    = false; ///< AND of all individual checks
-    std::vector<std::string> violations;             ///< human-readable failure reasons
-  };
-
-  /** @brief Run speed / height / gyro / topic / position checks; updates debounce timestamps. */
-  PreflightResult runPreflightChecks();
-
-  /** @brief Individual per-check helpers (ported from mrs_uav_autostart). */
-  bool preflightCheckSpeed(std::string &violation);
-  bool preflightCheckHeight(std::string &violation);
-  bool preflightCheckGyro(std::string &violation);
-  bool preflightCheckTopics(std::vector<std::string> &violations);
-
-  /** @brief Generic callback that marks a heartbeat topic as seen. */
-  void genericTopicCallback(const std::shared_ptr<rclcpp::SerializedMessage> msg, size_t id);
-
   // | -------------------- SystemHealthInfo -------------------- |
   mrs_lib::PublisherHandler<mrs_msgs::msg::SystemHealthInfo>  ph_system_health_info_;
   mrs_msgs::msg::SystemHealthInfo                             last_system_health_info_;
@@ -310,9 +252,9 @@ private:
 
   std::shared_ptr<TimerType> timer_preflight_checks_;
   /** @brief Runs preflight checks and updates GeneralRobotInfo with results. */
-  void                          timerPreflightChecks();
-  StateMonitor::PreflightResult preflight_result_;       ///< cached result of the latest preflight check run
-  std::mutex                    preflight_result_mutex_; ///< guards preflight_result_ across timer and subscriber callbacks
+  void                                                 timerPreflightChecks();
+  preflight_checker::PreflightChecker::PreflightResult preflight_result_;       ///< cached result of the latest preflight check run
+  std::mutex                                           preflight_result_mutex_; ///< guards preflight_result_ across timer and subscriber callbacks
 
   // | ------------------------ Callbacks ----------------------- |
 

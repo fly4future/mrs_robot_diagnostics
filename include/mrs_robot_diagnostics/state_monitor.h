@@ -185,12 +185,6 @@ private:
   mrs_lib::SubscriberHandler<std_msgs::msg::Float64>     sh_mass_nominal_;
   mrs_lib::SubscriberHandler<std_msgs::msg::Float64>     sh_mass_estimate_;
 
-  // | --------------------- Preflight checks ------------------- |
-  mrs_lib::SubscriberHandler<mrs_msgs::msg::HwApiCapabilities>            sh_hw_api_capabilities_;
-  mrs_lib::SubscriberHandler<sensor_msgs::msg::Range>                     sh_hw_api_distance_sensor_;
-  mrs_lib::SubscriberHandler<sensor_msgs::msg::Imu>                       sh_hw_api_imu_;
-  mrs_lib::SubscriberHandler<mrs_msgs::msg::SafetyAreaManagerDiagnostics> sh_safety_area_manager_diagnostics_;
-
   // | -------------------- SystemHealthInfo -------------------- |
   mrs_lib::PublisherHandler<mrs_msgs::msg::SystemHealthInfo>  ph_system_health_info_;
   mrs_msgs::msg::SystemHealthInfo                             last_system_health_info_;
@@ -249,12 +243,6 @@ private:
   std::shared_ptr<TimerType> timer_update_sensor_status_;
   /** @brief Polls all sensor handler plugins and updates available_sensors_. */
   void timerUpdateSensorStatus();
-
-  std::shared_ptr<TimerType> timer_preflight_checks_;
-  /** @brief Runs preflight checks and updates GeneralRobotInfo with results. */
-  void                                                 timerPreflightChecks();
-  preflight_checker::PreflightChecker::PreflightResult preflight_result_;       ///< cached result of the latest preflight check run
-  std::mutex                                           preflight_result_mutex_; ///< guards preflight_result_ across timer and subscriber callbacks
 
   // | ------------------------ Callbacks ----------------------- |
 

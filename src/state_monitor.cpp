@@ -207,13 +207,7 @@ void StateMonitor::initialize() {
   sh_mass_nominal_  = mrs_lib::SubscriberHandler<std_msgs::msg::Float64>(shopts, "~/mass_nominal_in");
   sh_mass_estimate_ = mrs_lib::SubscriberHandler<std_msgs::msg::Float64>(shopts, "~/mass_estimate_in");
 
-  // | --------------------- Preflight checks ------------------- |
-  sh_hw_api_capabilities_             = mrs_lib::SubscriberHandler<mrs_msgs::msg::HwApiCapabilities>(shopts, "~/hw_api_capabilities_in");
-  sh_hw_api_distance_sensor_          = mrs_lib::SubscriberHandler<sensor_msgs::msg::Range>(shopts, "~/hw_api_distance_sensor_in");
-  sh_hw_api_imu_                      = mrs_lib::SubscriberHandler<sensor_msgs::msg::Imu>(shopts, "~/hw_api_imu_in");
-  sh_safety_area_manager_diagnostics_ = mrs_lib::SubscriberHandler<mrs_msgs::msg::SafetyAreaManagerDiagnostics>(shopts, "~/safety_area_manager_diagnostics_in");
-
-  preflight_checker_ = std::make_unique<preflight_checker::PreflightChecker>(node_, cbkgrp_subs_, _robot_name_);
+  preflight_checker_ = std::make_unique<preflight_checker::PreflightChecker>(node_, _robot_name_);
 
   // | -------------------- SystemHealthInfo -------------------- |
   ph_system_health_info_ = mrs_lib::PublisherHandler<mrs_msgs::msg::SystemHealthInfo>(node_, "~/system_health_info_out");
@@ -252,12 +246,6 @@ void StateMonitor::initialize() {
     std::function<void()> callback_fcn = std::bind(&StateMonitor::timerUavState, this);
 
     timer_uav_state_ = std::make_shared<TimerType>(timer_opts_start, rclcpp::Rate(state_timer_rate, clock_), callback_fcn);
-  }
-
-  {
-    std::function<void()> callback_fcn = std::bind(&StateMonitor::timerPreflightChecks, this);
-
-    timer_preflight_checks_ = std::make_shared<TimerType>(timer_opts_start, rclcpp::Rate(10.0, clock_), callback_fcn);
   }
 
   // | --------------------- finish the init -------------------- |
@@ -393,57 +381,6 @@ void StateMonitor::timerUpdateSensorStatus() {
     auto sensor_status_msg = handler->updateStatus();
     available_sensors_.push_back(sensor_status_msg);
   }
-}
-
-void StateMonitor::timerPreflightChecks() {
-  if (!is_initialized_) {
-    return;
-  }
-
-  std::scoped_lock lck(uav_state_mutex_, preflight_result_mutex_);
-  if (uav_state_.value() != state_t::OFFBOARD) {
-    // only run preflight checks when the UAV is in OFFBOARD state, which is the last state before takeoff
-    return;
-  }
-
-  preflight_checker::PreflightChecker::PreflightInputs preflight_inputs;
-
-  if (sh_estimation_diagnostics_.hasMsg()) {
-    auto                        estimation_diag = sh_estimation_diagnostics_.getMsg();
-    geometry_msgs::msg::Vector3 velocity_msg;
-    velocity_msg.x            = estimation_diag->velocity.linear.x;
-    velocity_msg.y            = estimation_diag->velocity.linear.y;
-    velocity_msg.z            = estimation_diag->velocity.linear.z;
-    preflight_inputs.velocity = velocity_msg;
-  }
-
-  if (sh_hw_api_capabilities_.hasMsg()) {
-    auto hw_api_capabilities             = sh_hw_api_capabilities_.getMsg();
-    preflight_inputs.has_distance_sensor = hw_api_capabilities->produces_distance_sensor;
-    preflight_inputs.has_imu             = hw_api_capabilities->produces_imu;
-  }
-
-  if (sh_hw_api_distance_sensor_.hasMsg()) {
-    auto distance_sensor_msg               = sh_hw_api_distance_sensor_.getMsg();
-    preflight_inputs.distance_sensor_range = *distance_sensor_msg;
-  }
-
-  if (sh_hw_api_imu_.hasMsg()) {
-    auto                        imu_msg = sh_hw_api_imu_.getMsg();
-    geometry_msgs::msg::Vector3 angular_velocity_msg;
-    angular_velocity_msg.x        = imu_msg->angular_velocity.x;
-    angular_velocity_msg.y        = imu_msg->angular_velocity.y;
-    angular_velocity_msg.z        = imu_msg->angular_velocity.z;
-    preflight_inputs.angular_rate = angular_velocity_msg;
-  }
-
-  if (sh_safety_area_manager_diagnostics_.hasMsg()) {
-    auto safety_area_diag           = sh_safety_area_manager_diagnostics_.getMsg();
-    preflight_inputs.position_valid = safety_area_diag->position_valid_2d;
-  }
-
-  const auto preflight_result = preflight_checker_->runPreflightChecks(preflight_inputs);
-  preflight_result_           = preflight_result;
 }
 
 // | ------------------------ callbacks ----------------------- |
@@ -586,36 +523,33 @@ mrs_msgs::msg::GeneralRobotInfo StateMonitor::parse_general_robot_info([[maybe_u
 
   bool ready = false;
 
-  std::scoped_lock lck(preflight_result_mutex_);
-  {
+  const auto preflight_result = preflight_checker_->runPreflightChecks();
+  ready                       = preflight_result.can_takeoff && state_offboard;
 
-    ready = preflight_result_.can_takeoff && state_offboard;
+  msg.ready_to_start = ready;
 
-    msg.ready_to_start = ready;
+  // If not flying, explain why we're not ready. When flying autonomously, we
+  // assume everything was fine at takeoff and skip the diagnosis.
+  if (!is_flying_autonomously(uav_state)) {
+    switch (uav_state) {
+      case state_t::UNKNOWN:
+        msg.problems_preventing_start.emplace_back("UAV state is UNKNOWN");
+        break;
+      case state_t::MANUAL:
+        msg.problems_preventing_start.emplace_back("UAV state is in MANUAL mode");
+        break;
+      case state_t::DISARMED:
+        msg.problems_preventing_start.emplace_back("UAV is DISARMED");
+        break;
+      case state_t::OFFBOARD:
+        // if we're in OFFBOARD mode, but not ready, we can give more insights on why the preflight checks are failing
+        for (const auto &v : preflight_result.violations)
+          msg.problems_preventing_start.push_back(v);
 
-    // If not flying, explain why we're not ready. When flying autonomously, we
-    // assume everything was fine at takeoff and skip the diagnosis.
-    if (!is_flying_autonomously(uav_state)) {
-      switch (uav_state) {
-        case state_t::UNKNOWN:
-          msg.problems_preventing_start.emplace_back("UAV state is UNKNOWN");
-          break;
-        case state_t::MANUAL:
-          msg.problems_preventing_start.emplace_back("UAV state is in MANUAL mode");
-          break;
-        case state_t::DISARMED:
-          msg.problems_preventing_start.emplace_back("UAV is DISARMED");
-          break;
-        case state_t::OFFBOARD:
-          // if we're in OFFBOARD mode, but not ready, we can give more insights on why the preflight checks are failing
-          for (const auto &v : preflight_result_.violations)
-            msg.problems_preventing_start.push_back(v);
-
-          break;
-        default:
-          msg.problems_preventing_start.emplace_back("UAV is not in OFFBOARD mode");
-          break;
-      }
+        break;
+      default:
+        msg.problems_preventing_start.emplace_back("UAV is not in OFFBOARD mode");
+        break;
     }
   }
 

@@ -26,6 +26,7 @@
   <depend>diagnostics_msgs</depend>
   <depend>mrs_msgs</depend>
   <depend>mrs_lib</depend>
+  <depend>nlohmann-json-dev</depend>
 
   <export>
     <build_type>ament_cmake</build_type>

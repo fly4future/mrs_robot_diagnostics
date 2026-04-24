@@ -7,6 +7,10 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+add_definitions("-Wall")
+add_definitions("-Wextra")
+add_definitions("-Wpedantic")
+
 # 1 == use rclcpp::Timer implementation
 # 0 == use MRS's thread timer implementation
 set(USE_ROS_TIMER 0)
@@ -43,10 +47,10 @@ set(DEPENDENCIES
 set(LIBRARIES
   MrsRobotDiagnostics_MrsRobotDiagnostics
   MrsRobotDiagnostics_StateMonitor
-  MrsRobotDiagnostics_GenericSensorHandler
   # MrsRobotDiagnostics_CameraHandler
   MrsRobotDiagnostics_GPSHandler
   MrsRobotDiagnostics_MagnetometerHandler
+  MrsRobotDiagnostics_GenericSensorHandler
   MrsRobotDiagnostics_RCHandler
 )
 
@@ -217,6 +221,20 @@ target_compile_definitions(MrsRobotDiagnostics_RCHandler PRIVATE USE_ROS_TIMER=$
 ## --------------------------------------------------------------
 
 pluginlib_export_plugin_description_file(mrs_robot_diagnostics plugins.xml)
+
+## --------------------------------------------------------------
+## |                           Testing                          |
+## --------------------------------------------------------------
+
+if(ENABLE_TESTS)
+
+  find_package(ament_cmake_clang_format REQUIRED)
+  ament_clang_format(CONFIG_FILE "${PROJECT_SOURCE_DIR}/.clang-format")
+
+  find_package(ament_cmake_xmllint REQUIRED)
+  ament_xmllint()
+
+endif()
 
 ## --------------------------------------------------------------
 ## |                           Install                          |

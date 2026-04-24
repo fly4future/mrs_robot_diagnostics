@@ -30,32 +30,38 @@ void PreflightChecker::initialize(void) {
   param_loader.addYamlFileFromParam("preflight_check_config");
 
   // preflight check configuration
-  param_loader.loadParam("robot_diagnostics/preflight_check/enabled", preflight_cfg_.enabled, false);
-  param_loader.loadParam("robot_diagnostics/preflight_check/time_window", preflight_cfg_.time_window, 5.0);
-  param_loader.loadParam("robot_diagnostics/preflight_check/not_reporting_delay", preflight_cfg_.not_reporting_delay, 3.0);
+  param_loader.loadParam("robot_diagnostics/preflight_check/enabled", preflight_cfg_.enabled);
+  param_loader.loadParam("robot_diagnostics/preflight_check/time_window", preflight_cfg_.time_window);
+  param_loader.loadParam("robot_diagnostics/preflight_check/not_reporting_delay", preflight_cfg_.not_reporting_delay);
 
-  param_loader.loadParam("robot_diagnostics/preflight_check/speed_check/enabled", preflight_cfg_.speed_check_enabled, false);
-  param_loader.loadParam("robot_diagnostics/preflight_check/speed_check/max_speed", preflight_cfg_.speed_check_max, 0.0);
+  param_loader.loadParam("robot_diagnostics/preflight_check/speed_check/enabled", preflight_cfg_.speed_check_enabled);
+  param_loader.loadParam("robot_diagnostics/preflight_check/speed_check/max_speed", preflight_cfg_.speed_check_max);
 
-  param_loader.loadParam("robot_diagnostics/preflight_check/height_check/enabled", preflight_cfg_.height_check_enabled, false);
-  param_loader.loadParam("robot_diagnostics/preflight_check/height_check/max_height", preflight_cfg_.height_check_max, 0.0);
+  param_loader.loadParam("robot_diagnostics/preflight_check/height_check/enabled", preflight_cfg_.height_check_enabled);
+  param_loader.loadParam("robot_diagnostics/preflight_check/height_check/max_height", preflight_cfg_.height_check_max);
 
-  param_loader.loadParam("robot_diagnostics/preflight_check/gyro_check/enabled", preflight_cfg_.gyro_check_enabled, false);
-  param_loader.loadParam("robot_diagnostics/preflight_check/gyro_check/max_rate", preflight_cfg_.gyro_check_max, 0.0);
+  param_loader.loadParam("robot_diagnostics/preflight_check/gyro_check/enabled", preflight_cfg_.gyro_check_enabled);
+  param_loader.loadParam("robot_diagnostics/preflight_check/gyro_check/max_rate", preflight_cfg_.gyro_check_max);
 
-  param_loader.loadParam("robot_diagnostics/preflight_check/topic_check/enabled", preflight_cfg_.topic_check_enabled, false);
-  param_loader.loadParam("robot_diagnostics/preflight_check/topic_check/timeout", preflight_cfg_.topic_check_timeout, 5.0);
-  param_loader.loadParam("robot_diagnostics/preflight_check/topic_check/topics", preflight_cfg_.topic_check_topics, std::vector<std::string>{});
+  param_loader.loadParam("robot_diagnostics/preflight_check/topic_check/enabled", preflight_cfg_.topic_check_enabled);
+  param_loader.loadParam("robot_diagnostics/preflight_check/topic_check/timeout", preflight_cfg_.topic_check_timeout);
+  param_loader.loadParam("robot_diagnostics/preflight_check/topic_check/topics", preflight_cfg_.topic_check_topics);
 
   if (!param_loader.loadedSuccessfully()) {
     RCLCPP_ERROR(node_->get_logger(), "Failed to load all parameters for PreflightChecker");
+    rclcpp::shutdown();
+    return;
+  }
+
+  // if checker is not enabled, we don't need to reqister subscribers at all
+  if (!preflight_cfg_.enabled) {
     return;
   }
 
   tim_mgr_ = std::make_shared<mrs_lib::TimeoutManager>(node_, rclcpp::Rate(1.0));
   mrs_lib::SubscriberHandlerOptions shopts;
   shopts.node                                = node_;
-  shopts.node_name                           = "StateMonitor";
+  shopts.node_name                           = "StateMonitor_PreflightChecker";
   shopts.no_message_timeout                  = rclcpp::Duration(preflight_cfg_.not_reporting_delay, 0);
   shopts.timeout_manager                     = tim_mgr_;
   shopts.threadsafe                          = true;
@@ -82,7 +88,7 @@ void PreflightChecker::initialize(void) {
   height_check_violated_time_ = rclcpp::Time(0, 0, clock_->get_clock_type());
   gyro_check_violated_time_   = rclcpp::Time(0, 0, clock_->get_clock_type());
 
-  if (preflight_cfg_.enabled && preflight_cfg_.topic_check_enabled) {
+  if (preflight_cfg_.topic_check_enabled) {
     topic_heartbeats_.reserve(preflight_cfg_.topic_check_topics.size());
     topic_check_subs_.reserve(preflight_cfg_.topic_check_topics.size());
 

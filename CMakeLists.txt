@@ -101,6 +101,7 @@ target_link_libraries(MrsRobotDiagnostics_MrsRobotDiagnostics
 
 add_library(MrsRobotDiagnostics_StateMonitor SHARED
   src/state_monitor.cpp
+  src/preflight_checker.cpp
 )
 
 target_link_libraries(MrsRobotDiagnostics_StateMonitor

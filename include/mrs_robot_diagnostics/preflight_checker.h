@@ -43,7 +43,6 @@ public:
   {
     std::optional<geometry_msgs::msg::Vector3> velocity;
     std::optional<sensor_msgs::msg::Range>     distance_sensor_range;
-    // std::optional<sensor_msgs::msg::Imu>       imu_data;
     std::optional<geometry_msgs::msg::Vector3> angular_rate;
     bool                                       has_distance_sensor = false;
     bool                                       has_imu             = false;

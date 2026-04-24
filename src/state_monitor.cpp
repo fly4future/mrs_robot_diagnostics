@@ -146,6 +146,7 @@ void StateMonitor::initialize() {
   if (!param_loader.loadedSuccessfully()) {
     RCLCPP_ERROR(node_->get_logger(), "Could not load all parameters!");
     rclcpp::shutdown();
+    return;
   }
 
   mrs_msgs::msg::SensorStatus ss_msg;

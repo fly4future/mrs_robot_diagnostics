@@ -104,6 +104,13 @@ add_library(MrsRobotDiagnostics_StateMonitor SHARED
   src/preflight_checker.cpp
 )
 
+target_sources(MrsRobotDiagnostics_StateMonitor
+  PUBLIC FILE_SET HEADERS BASE_DIRS "include"
+  FILES
+    "include/mrs_robot_diagnostics/state_monitor.h"
+    "include/mrs_robot_diagnostics/preflight_checker.h"
+)
+
 target_link_libraries(MrsRobotDiagnostics_StateMonitor
   PRIVATE
     mrs_robot_diagnostics::mrs_robot_diagnostics  
@@ -119,6 +126,12 @@ target_compile_definitions(MrsRobotDiagnostics_StateMonitor PRIVATE USE_ROS_TIME
 #   src/sensor_handler_plugins/camera_handler.cpp
 # )
 #
+# target_sources(MrsRobotDiagnostics_CameraHandler
+#   PUBLIC FILE_SET HEADERS BASE_DIRS "include"
+#   FILES
+#     "include/mrs_robot_diagnostics/sensor_plugins/camera_handler.h"
+# )
+#
 # target_link_libraries(MrsRobotDiagnostics_CameraHandler
 #   PRIVATE
 #     mrs_robot_diagnostics::mrs_robot_diagnostics 
@@ -131,6 +144,12 @@ add_library(MrsRobotDiagnostics_GPSHandler SHARED
   src/sensor_handler_plugins/gps_handler.cpp
 )
 
+target_sources(MrsRobotDiagnostics_GPSHandler
+  PUBLIC FILE_SET HEADERS BASE_DIRS "include"
+  FILES
+    "include/mrs_robot_diagnostics/sensor_plugins/gps_handler.h"
+)
+
 target_link_libraries(MrsRobotDiagnostics_GPSHandler
   PRIVATE
     mrs_robot_diagnostics::mrs_robot_diagnostics 
@@ -141,6 +160,12 @@ target_compile_definitions(MrsRobotDiagnostics_GPSHandler PRIVATE USE_ROS_TIMER=
 ## | ----------- MrsRobotDiagnostics_MagnetometerHandler ------------ |
 add_library(MrsRobotDiagnostics_MagnetometerHandler SHARED
   src/sensor_handler_plugins/magnetometer_handler.cpp
+)
+
+target_sources(MrsRobotDiagnostics_MagnetometerHandler
+  PUBLIC FILE_SET HEADERS BASE_DIRS "include"
+  FILES
+    "include/mrs_robot_diagnostics/sensor_plugins/magnetometer_handler.h"
 )
 
 target_link_libraries(MrsRobotDiagnostics_MagnetometerHandler
@@ -156,6 +181,12 @@ add_library(MrsRobotDiagnostics_GenericSensorHandler SHARED
   src/sensor_handler_plugins/generic_handler.cpp
 )
 
+target_sources(MrsRobotDiagnostics_GenericSensorHandler
+  PUBLIC FILE_SET HEADERS BASE_DIRS "include"
+  FILES
+    "include/mrs_robot_diagnostics/sensor_plugins/generic_handler.h"
+)
+
 target_link_libraries(MrsRobotDiagnostics_GenericSensorHandler
   PRIVATE
     mrs_robot_diagnostics::mrs_robot_diagnostics
@@ -166,6 +197,12 @@ target_compile_definitions(MrsRobotDiagnostics_GenericSensorHandler PRIVATE USE_
 ## | -------------- MrsRobotDiagnostics_RCHandler --------------- |
 add_library(MrsRobotDiagnostics_RCHandler SHARED
   src/sensor_handler_plugins/remote_controller.cpp
+)
+
+target_sources(MrsRobotDiagnostics_RCHandler
+  PUBLIC FILE_SET HEADERS BASE_DIRS "include"
+  FILES
+    "include/mrs_robot_diagnostics/sensor_plugins/remote_controller.h"
 )
 
 target_link_libraries(MrsRobotDiagnostics_RCHandler

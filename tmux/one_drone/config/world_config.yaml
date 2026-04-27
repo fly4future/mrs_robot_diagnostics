@@ -2,7 +2,7 @@ mrs_uav_managers:
 
   world_origin:
 
-    units: "LATLON" # {"UTM, "LATLON"}
+    units: "LATLON" # {"UTM", "LATLON"}
 
     origin_x: 47.397743
     origin_y: 8.545594

@@ -48,13 +48,13 @@ windows:
   - topic_echos:
       layout: tiled
       panes:
-        - rostopic echo /uav1/state_monitor/collision_avoidance_info
-        - rostopic echo /uav1/state_monitor/control_info
-        - rostopic echo /uav1/state_monitor/general_robot_info
-        - rostopic echo /uav1/state_monitor/state_estimation_info
-        - rostopic echo /uav1/state_monitor/system_health_info
-        - rostopic echo /uav1/state_monitor/uav_info
-        - rostopic echo /uav1/state_monitor/uav_state
+        - ros2 topic echo /uav1/state_monitor/collision_avoidance_info
+        - ros2 topic echo /uav1/state_monitor/control_info
+        - ros2 topic echo /uav1/state_monitor/general_robot_info
+        - ros2 topic echo /uav1/state_monitor/state_estimation_info
+        - ros2 topic echo /uav1/state_monitor/system_health_info
+        - ros2 topic echo /uav1/state_monitor/uav_info
+        - ros2 topic echo /uav1/state_monitor/uav_state
   - commands:
       layout: tiled
       panes:

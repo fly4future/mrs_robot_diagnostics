@@ -6,31 +6,22 @@
 <!--   </class> -->
 <!-- </library> -->
 
-<library path="MrsRobotDiagnostics_GenericSensorHandler">
+<library path="MrsRobotDiagnostics_SensorPlugins">
   <class name="mrs_robot_diagnostics/GenericSensorHandler"
     type="mrs_robot_diagnostics::generic_handler::GenericSensorHandler"
     base_class_type="mrs_robot_diagnostics::SensorHandler">
     <description>Generic sensor handler for monitoring topic publish rate</description>
   </class>
-</library>
-
-<library path="MrsRobotDiagnostics_GPSHandler">
   <class name="mrs_robot_diagnostics/GPSHandler"
     type="mrs_robot_diagnostics::gps_handler::GPSHandler"
     base_class_type="mrs_robot_diagnostics::SensorHandler">
     <description>GPS sensor handler for monitoring GPS topic publish rate and satellite count</description>
   </class>
-</library>
-
-<library path="MrsRobotDiagnostics_MagnetometerHandler">
   <class name="mrs_robot_diagnostics/MagnetometerHandler"
     type="mrs_robot_diagnostics::magnetometer_handler::MagnetometerHandler"
     base_class_type="mrs_robot_diagnostics::SensorHandler">
     <description>Magnetometer sensor handler for monitoring magnetometer topic publish rate</description>
   </class>
-</library>
-
-<library path="MrsRobotDiagnostics_RCHandler">
   <class name="mrs_robot_diagnostics/RCHandler"
     type="mrs_robot_diagnostics::rc_handler::RCHandler"
     base_class_type="mrs_robot_diagnostics::SensorHandler">

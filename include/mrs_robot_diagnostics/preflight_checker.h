@@ -99,16 +99,21 @@ private:
 
   PreflightConfig preflight_cfg_;
 
-  /** @brief Per-check timestamp of the last observed violation (0 = none). */
+  /** @brief Per-check timestamp of the last observed violation. */
   rclcpp::Time speed_check_violated_time_;
   rclcpp::Time height_check_violated_time_;
   rclcpp::Time gyro_check_violated_time_;
+
+  bool speed_violation_seen_  = false;
+  bool height_violation_seen_ = false;
+  bool gyro_violation_seen_   = false;
 
   /** @brief Tracks last-message time for one topic in the generic topic_check. */
   struct TopicHeartbeat
   {
     std::string  name;
     rclcpp::Time last_msg_time;
+    bool ever_seen;
   };
   std::mutex                                          topic_heartbeats_mutex_;
   std::vector<TopicHeartbeat>                         topic_heartbeats_;

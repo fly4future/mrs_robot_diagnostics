@@ -508,8 +508,6 @@ state_t StateMonitor::parse_uav_state(mrs_msgs::msg::HwApiStatus::ConstSharedPtr
   }
 }
 
-// | -------------------- Preflight checks -------------------- |
-
 mrs_msgs::msg::GeneralRobotInfo StateMonitor::parse_general_robot_info([[maybe_unused]] sensor_msgs::msg::BatteryState::ConstSharedPtr battery_state) {
   mrs_msgs::msg::GeneralRobotInfo msg;
   msg.stamp            = clock_->now();
@@ -526,7 +524,11 @@ mrs_msgs::msg::GeneralRobotInfo StateMonitor::parse_general_robot_info([[maybe_u
   // assume everything was fine at takeoff and skip the diagnosis.
   if (!is_flying_autonomously(uav_state)) {
     const auto preflight_result = preflight_checker_->runPreflightChecks();
-    msg.ready_to_start          = preflight_result.can_takeoff && state_offboard;
+
+    msg.ready_to_start = preflight_result.can_takeoff && state_offboard;
+
+    for (const auto &v : preflight_result.violations)
+      msg.problems_preventing_start.push_back(v);
 
     switch (uav_state) {
       case state_t::UNKNOWN:
@@ -538,14 +540,9 @@ mrs_msgs::msg::GeneralRobotInfo StateMonitor::parse_general_robot_info([[maybe_u
       case state_t::DISARMED:
         msg.problems_preventing_start.emplace_back("UAV is DISARMED");
         break;
-      case state_t::OFFBOARD:
-        // if we're in OFFBOARD mode, but not ready, we can give more insights on why the preflight checks are failing
-        for (const auto &v : preflight_result.violations)
-          msg.problems_preventing_start.push_back(v);
-
-        break;
       default:
-        msg.problems_preventing_start.emplace_back("UAV is not in OFFBOARD mode");
+        if (!state_offboard)
+          msg.problems_preventing_start.emplace_back("UAV is not in OFFBOARD mode");
         break;
     }
   }

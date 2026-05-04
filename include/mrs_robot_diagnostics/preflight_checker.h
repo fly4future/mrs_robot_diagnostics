@@ -4,6 +4,10 @@
 #include <geometry_msgs/msg/vector3.hpp>
 #include <mrs_lib/param_loader.h>
 #include <mrs_lib/subscriber_handler.h>
+#include <mrs_msgs/msg/control_manager_diagnostics.hpp>
+#include <mrs_msgs/msg/estimation_diagnostics.hpp>
+#include <mrs_msgs/msg/hw_api_capabilities.hpp>
+#include <mrs_msgs/msg/safety_area_manager_diagnostics.hpp>
 #include <mutex>
 #include <optional>
 #include <sensor_msgs/msg/imu.hpp>
@@ -129,6 +133,7 @@ private:
   mrs_lib::SubscriberHandler<sensor_msgs::msg::Range>                     sh_hw_api_distance_sensor_;
   mrs_lib::SubscriberHandler<sensor_msgs::msg::Imu>                       sh_hw_api_imu_;
   mrs_lib::SubscriberHandler<mrs_msgs::msg::SafetyAreaManagerDiagnostics> sh_safety_area_manager_diagnostics_;
+  mrs_lib::SubscriberHandler<mrs_msgs::msg::ControlManagerDiagnostics>    sh_control_manager_diagnostics_;
 };
 
 } // namespace preflight_checker

@@ -71,6 +71,7 @@ void PreflightChecker::initialize(void) {
   // | --------------------- Preflight checks ------------------- |
   sh_hw_api_capabilities_             = mrs_lib::SubscriberHandler<mrs_msgs::msg::HwApiCapabilities>(shopts, "~/hw_api_capabilities_in");
   sh_safety_area_manager_diagnostics_ = mrs_lib::SubscriberHandler<mrs_msgs::msg::SafetyAreaManagerDiagnostics>(shopts, "~/safety_area_manager_diagnostics_in");
+  sh_control_manager_diagnostics_     = mrs_lib::SubscriberHandler<mrs_msgs::msg::ControlManagerDiagnostics>(shopts, "~/control_manager_diagnostics_in");
 
   if (preflight_cfg_.speed_check_enabled) {
     sh_estimation_diagnostics_ = mrs_lib::SubscriberHandler<mrs_msgs::msg::EstimationDiagnostics>(shopts, "~/estimation_diagnostics_in");
@@ -180,6 +181,15 @@ PreflightChecker::PreflightResult PreflightChecker::runPreflightChecks() {
     PreflightResult result;
     result.can_takeoff = true; // if preflight checks are disabled, we allow takeoff
     return result;
+  }
+
+  if (sh_control_manager_diagnostics_.hasMsg()) {
+    auto control_manager_diag = sh_control_manager_diagnostics_.getMsg();
+    if (!control_manager_diag->output_enabled) {
+      PreflightResult result;
+      result.violations.push_back("preflight check: control manager output not enabled");
+      return result;
+    }
   }
 
   return runPreflightChecks(collectPreflightData());

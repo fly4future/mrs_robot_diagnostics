@@ -1,4 +1,4 @@
-
+#pragma once
 #include <cmath>
 #include <geometry_msgs/msg/vector3.hpp>
 #include <mrs_lib/param_loader.h>
@@ -14,7 +14,6 @@
 #include <sensor_msgs/msg/range.hpp>
 #include <string>
 #include <vector>
-#pragma once
 
 namespace mrs_robot_diagnostics
 {

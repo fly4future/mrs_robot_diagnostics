@@ -116,7 +116,7 @@ void PreflightChecker::initialize(void) {
       TopicHeartbeat hb;
       hb.name          = topic_name;
       hb.last_msg_time = rclcpp::Time(0, 0, clock_->get_clock_type());
-      hb.ever_seen = false;
+      hb.ever_seen     = false;
       topic_heartbeats_.push_back(hb);
 
       const size_t id = topic_heartbeats_.size() - 1;
@@ -251,7 +251,7 @@ std::optional<std::string> PreflightChecker::preflightCheckSpeed(const std::opti
 
   if (std::isnan(speed) || speed > preflight_cfg_.speed_check_max) {
     speed_check_violated_time_ = clock_->now();
-    speed_violation_seen_ = true;
+    speed_violation_seen_      = true;
     std::stringstream ss;
     ss << "preflight speed: " << speed << " m/s exceeds limit " << preflight_cfg_.speed_check_max << " m/s";
     violation = ss.str();
@@ -281,7 +281,7 @@ std::optional<std::string> PreflightChecker::preflightCheckHeight(const std::opt
 
   if (std::isnan(height) || height > preflight_cfg_.height_check_max) {
     height_check_violated_time_ = clock_->now();
-    height_violation_seen_ = true;
+    height_violation_seen_      = true;
     std::stringstream ss;
     ss << "preflight height: " << height << " m exceeds limit " << preflight_cfg_.height_check_max << " m";
     violation = ss.str();
@@ -310,7 +310,7 @@ std::optional<std::string> PreflightChecker::preflightCheckGyro(const std::optio
 
   if (std::isnan(g.x) || std::isnan(g.y) || std::isnan(g.z) || std::abs(g.x) > max || std::abs(g.y) > max || std::abs(g.z) > max) {
     gyro_check_violated_time_ = clock_->now();
-    gyro_violation_seen_ = true;
+    gyro_violation_seen_      = true;
     std::stringstream ss;
     ss << "preflight gyro: angular velocity [" << g.x << ", " << g.y << ", " << g.z << "] rad/s exceeds limit " << max << " rad/s";
     violation = ss.str();
@@ -334,7 +334,7 @@ std::optional<std::vector<std::string>> PreflightChecker::preflightCheckTopics()
   std::vector<std::string> violations;
 
   for (const auto &hb : topic_heartbeats_) {
-    const bool stale      = hb.ever_seen && (now - hb.last_msg_time).seconds() > preflight_cfg_.topic_check_timeout;
+    const bool stale = hb.ever_seen && (now - hb.last_msg_time).seconds() > preflight_cfg_.topic_check_timeout;
     if (!hb.ever_seen || stale) {
       violations.push_back("preflight topic_check: no recent data on " + hb.name);
       all_ok = false;
@@ -353,7 +353,7 @@ void PreflightChecker::genericTopicCallback([[maybe_unused]] const std::shared_p
   if (id >= topic_heartbeats_.size())
     return;
   topic_heartbeats_.at(id).last_msg_time = clock_->now();
-  topic_heartbeats_.at(id).ever_seen = true;
+  topic_heartbeats_.at(id).ever_seen     = true;
 }
 } // namespace preflight_checker
 } // namespace mrs_robot_diagnostics

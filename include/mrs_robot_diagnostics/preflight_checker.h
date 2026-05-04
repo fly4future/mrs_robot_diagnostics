@@ -1,5 +1,4 @@
-#pragma once
-#include <rclcpp/rclcpp.hpp>
+
 #include <cmath>
 #include <geometry_msgs/msg/vector3.hpp>
 #include <mrs_lib/param_loader.h>
@@ -10,14 +9,12 @@
 #include <mrs_msgs/msg/safety_area_manager_diagnostics.hpp>
 #include <mutex>
 #include <optional>
+#include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/range.hpp>
 #include <string>
 #include <vector>
-
-#include <mrs_msgs/msg/estimation_diagnostics.hpp>
-#include <mrs_msgs/msg/safety_area_manager_diagnostics.hpp>
-#include <mrs_msgs/msg/hw_api_capabilities.hpp>
+#pragma once
 
 namespace mrs_robot_diagnostics
 {
@@ -117,7 +114,7 @@ private:
   {
     std::string  name;
     rclcpp::Time last_msg_time;
-    bool ever_seen;
+    bool         ever_seen;
   };
   std::mutex                                          topic_heartbeats_mutex_;
   std::vector<TopicHeartbeat>                         topic_heartbeats_;

@@ -44,9 +44,20 @@ class SystemHealthBridge(Node):
         self.create_subscription(SystemHealthInfo, topic_name, self._callback, 10)
 
     def _callback(self, msg: SystemHealthInfo) -> None:
+        payload = dict(message_to_ordereddict(msg))
+        ros_stamp = None
+
+        if hasattr(msg, "stamp"):
+            ros_stamp = {"sec": msg.stamp.sec, "nanosec": msg.stamp.nanosec}
+        elif hasattr(msg, "header") and hasattr(msg.header, "stamp"):
+            ros_stamp = {"sec": msg.header.stamp.sec, "nanosec": msg.header.stamp.nanosec}
+        else:
+            # SystemHealthInfo in this package has no top-level stamp.
+            ros_stamp = payload.get("stamp")
+
         with self._lock:
-            self._latest_payload = dict(message_to_ordereddict(msg))
-            self._latest_ros_time = {"sec": msg.stamp.sec, "nanosec": msg.stamp.nanosec}
+            self._latest_payload = payload
+            self._latest_ros_time = ros_stamp
             self._latest_wall_time = time.time()
 
     def get_snapshot(self) -> dict[str, Any]:

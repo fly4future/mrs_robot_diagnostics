@@ -30,13 +30,14 @@ public:
   /** @brief Result of running the full preflight check suite. */
   struct PreflightResult
   {
-    bool                     speed_ok       = true;
-    bool                     height_ok      = true;
-    bool                     gyro_ok        = true;
-    bool                     topics_ok      = true;
-    bool                     position_valid = true;
-    bool                     can_takeoff    = false; ///< AND of all individual checks
-    std::vector<std::string> violations;             ///< human-readable failure reasons
+    bool                     speed_ok        = true;
+    bool                     height_ok       = true;
+    bool                     gyro_ok         = true;
+    bool                     topics_ok       = true;
+    bool                     position_valid  = true;
+    bool                     control_enabled = true;
+    bool                     can_takeoff     = false; ///< AND of all individual checks
+    std::vector<std::string> violations;              ///< human-readable failure reasons
   };
 
   struct PreflightInputs

@@ -183,15 +183,6 @@ PreflightChecker::PreflightResult PreflightChecker::runPreflightChecks() {
     return result;
   }
 
-  if (sh_control_manager_diagnostics_.hasMsg()) {
-    auto control_manager_diag = sh_control_manager_diagnostics_.getMsg();
-    if (!control_manager_diag->output_enabled) {
-      PreflightResult result;
-      result.violations.push_back("preflight check: control manager output not enabled");
-      return result;
-    }
-  }
-
   return runPreflightChecks(collectPreflightData());
 }
 
@@ -201,6 +192,14 @@ PreflightChecker::PreflightResult PreflightChecker::runPreflightChecks(const Pre
   if (!preflight_cfg_.enabled) {
     result.can_takeoff = true; // if preflight checks are disabled, we allow takeoff
     return result;
+  }
+
+  if (sh_control_manager_diagnostics_.hasMsg()) {
+    auto control_manager_diag = sh_control_manager_diagnostics_.getMsg();
+    if (!control_manager_diag->output_enabled) {
+      result.control_enabled = false;
+      result.violations.push_back("preflight check: control manager output not enabled");
+    }
   }
 
   if (auto speed_check_result = preflightCheckSpeed(inputs.velocity)) {
@@ -231,7 +230,7 @@ PreflightChecker::PreflightResult PreflightChecker::runPreflightChecks(const Pre
 
   result.position_valid = inputs.position_valid;
 
-  result.can_takeoff = result.speed_ok && result.height_ok && result.gyro_ok && result.topics_ok && result.position_valid;
+  result.can_takeoff = result.speed_ok && result.height_ok && result.gyro_ok && result.topics_ok && result.position_valid && result.control_enabled;
   return result;
 }
 

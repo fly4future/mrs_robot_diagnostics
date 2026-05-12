@@ -40,6 +40,8 @@ protected:
   bool        is_initialized_   = false;
 
   // Rate monitoring
+  std::string expected_publisher_node_;
+  std::string expected_publisher_component_;
   double   expected_rate_  = 0.0;
   double   rate_tolerance_ = 0.3;
   double   measured_rate_  = -1.0;
@@ -60,12 +62,6 @@ protected:
 
   // Error publisher for reporting detailed errors (optional, can be used by derived classes)
   std::shared_ptr<mrs_lib::errorgraph::ErrorPublisher> error_publisher_;
-
-  enum class error_type_t : uint16_t
-  {
-    not_initialized,
-    no_messages_received,
-  };
 
   // | -------------------- support functions ------------------- |
   double          calculateRate(std::deque<rclcpp::Time> &timestamps);

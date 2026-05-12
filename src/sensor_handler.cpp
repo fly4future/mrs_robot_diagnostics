@@ -20,9 +20,11 @@ bool SensorHandler::initialize(rclcpp::Node::SharedPtr &node, const std::string 
 
   name_ = config_key; // default name is the config key
   // Load all common parameters using the YAML key (config_key)
-  std::string sensor_type_str;
+  std::string sensor_type_str, expected_publisher_node, expected_publisher_component;
   param_loader.loadParam(config_key + "/topic", topic_);
   param_loader.loadParam(config_key + "/type", sensor_type_str);
+  param_loader.loadParam(config_key + "/expected_publisher/node", expected_publisher_node_, std::string("HwApiManager"));
+  param_loader.loadParam(config_key + "/expected_publisher/component", expected_publisher_component_, std::string("main"));
   param_loader.loadParam(config_key + "/expected_rate", expected_rate_);
   param_loader.loadParam(config_key + "/rate_tolerance", rate_tolerance_, 0.3);
 
@@ -95,9 +97,12 @@ mrs_msgs::msg::SensorStatus SensorHandler::updateStatus() {
   if (msg_count_ == 0) {
     ss.ready   = false;
     ss.rate    = 0.0;
-    ss.message = "No messages received yet";
+    ss.message = "No messages received for " + std::to_string(elapsed_since_init) + " seconds since startup"; 
     ss.level   = mrs_msgs::msg::SensorStatus::ERROR;
-    error_publisher_->addGeneralError(error_type_t::no_messages_received, "No messages received on topic " + topic_ + " since startup");
+    mrs_lib::errorgraph::node_id_t source_node;
+    source_node.node = expected_publisher_node_;
+    source_node.component = expected_publisher_component_;
+    error_publisher_->addWaitingForTopicError(topic_, source_node); 
     ss.details = fill_details();
     return ss;
   }
@@ -111,9 +116,10 @@ mrs_msgs::msg::SensorStatus SensorHandler::updateStatus() {
     ss.rate    = 0.0;
     ss.message = "No messages received for " + std::to_string(time_since_last) + " seconds";
     ss.level   = mrs_msgs::msg::SensorStatus::ERROR;
-    error_publisher_->addGeneralError(error_type_t::no_messages_received,
-                                      "No messages received on topic " + topic_ + " for " + std::to_string(time_since_last) + " seconds");
-
+    mrs_lib::errorgraph::node_id_t source_node;
+    source_node.node = expected_publisher_node_;
+    source_node.component = expected_publisher_component_;
+    error_publisher_->addWaitingForTopicError(topic_, source_node);
 
     ss.details = fill_details();
     return ss;

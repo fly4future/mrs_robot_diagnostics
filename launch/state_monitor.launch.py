@@ -151,7 +151,7 @@ def generate_launch_description():
             {"use_sim_time": use_sim_time},
             {'config': this_pkg_path + '/config/state_monitor_config.yaml'},
             {'preflight_check_config': this_pkg_path + '/config/preflight_check_config.yaml'},
-            # additional parameters for camera plugin 
+            # additional parameters for camera plugin
             {'camera_frame': [robot_name, '/servo_camera/camera_frame']},
             {'camera_info_topic': [robot_name, '/servo_camera/camera_info']},
             {'camera_orientation_topic': [robot_name, '/servo_camera/orientation']},
@@ -195,6 +195,7 @@ def generate_launch_description():
 
             # Errorgraph topics
             ("~/errors_in", "errors"),
+            ("~/errors", "errors"),
             ("~/errors_out", "root_errors"),
         ],
     )

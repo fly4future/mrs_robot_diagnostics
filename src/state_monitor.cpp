@@ -174,7 +174,7 @@ void StateMonitor::initialize() {
   shopts.autostart                           = true;
   shopts.subscription_options.callback_group = cbkgrp_subs_;
 
-  ph_root_errors_          = mrs_lib::PublisherHandler<mrs_msgs::msg::ErrorgraphElementArray>(node_, "~/root_errors_out");
+  ph_root_errors_          = mrs_lib::PublisherHandler<mrs_msgs::msg::ErrorgraphElementArray>(node_, "~/errors_out");
   sh_errorgraph_error_msg_ = mrs_lib::SubscriberHandler<mrs_msgs::msg::ErrorgraphElement>(shopts, "~/errors_in", &StateMonitor::cbk_errorgraph_element, this);
 
   // | -------------------- GeneralRobotInfo -------------------- |

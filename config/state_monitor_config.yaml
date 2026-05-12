@@ -25,6 +25,9 @@ robot_diagnostics:
     # type: "Example" # Example, Autopilot, Camera, Lidar, IMU, GPS, Battery, Barometer, Magnetometer, RangeFinder
     # address: "mrs_robot_diagnostics/ExampleHandler"
     # topic: "example_node/topic" # Don't add the leading slash, the name will be resolved relative to the node's namespace
+    # expected_publisher:
+    #   node: "example_node" # Name of the node expected to publish the topic (optional, used for more specific diagnostics)
+    #   component: "example_component" # Name of the component within the node expected to publish the topic (optional)
     # message_type: "std_msgs/msg/String"
     # qos_reliability: "reliable"              # QoS reliability setting (default: "reliable")
     # expected_rate: 10.0                      # Hz

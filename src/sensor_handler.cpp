@@ -20,7 +20,7 @@ bool SensorHandler::initialize(rclcpp::Node::SharedPtr &node, const std::string 
 
   name_ = config_key; // default name is the config key
   // Load all common parameters using the YAML key (config_key)
-  std::string sensor_type_str, expected_publisher_node, expected_publisher_component;
+  std::string sensor_type_str;
   param_loader.loadParam(config_key + "/topic", topic_);
   param_loader.loadParam(config_key + "/type", sensor_type_str);
   param_loader.loadParam(config_key + "/expected_publisher/node", expected_publisher_node_, std::string("HwApiManager"));

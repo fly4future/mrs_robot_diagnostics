@@ -1,0 +1,66 @@
+#include <mrs_robot_diagnostics/utils/wh_drained_integrator.h>
+
+#include <filesystem>
+#include <fstream>
+#include <stdexcept>
+
+namespace mrs_robot_diagnostics::utils
+{
+
+WhDrainedIntegrator::WhDrainedIntegrator(rclcpp::Clock::SharedPtr clock, std::string persist_path)
+    : clock_(std::move(clock)), persist_path_(std::move(persist_path)),
+      last_sample_(0, 0, clock_->get_clock_type()) {
+  loadFromDisk();
+}
+
+void WhDrainedIntegrator::integrate(double voltage, double current) {
+
+  std::scoped_lock lock(mutex_);
+
+  const auto now = clock_->now();
+
+  if (!have_sample_) {
+    have_sample_ = true;
+    last_sample_ = now;
+    return;
+  }
+
+  const double dt_seconds = (now - last_sample_).seconds();
+  last_sample_            = now;
+
+  // V * I * (dt / 3600) gives watt-hours
+  wh_drained_ += voltage * current * (dt_seconds / 3600.0);
+  persistToDisk();
+}
+
+double WhDrainedIntegrator::whDrained() const {
+  std::scoped_lock lock(mutex_);
+  return wh_drained_;
+}
+
+void WhDrainedIntegrator::loadFromDisk() {
+  if (!std::filesystem::exists(persist_path_)) {
+    return;
+  }
+  std::ifstream file(persist_path_);
+  std::string   line;
+  if (!std::getline(file, line)) {
+    return;
+  }
+  try {
+    wh_drained_ = std::stod(line);
+  }
+  catch (const std::invalid_argument &) {
+    wh_drained_ = 0.0;
+  }
+  catch (const std::out_of_range &) {
+    wh_drained_ = 0.0;
+  }
+}
+
+void WhDrainedIntegrator::persistToDisk() {
+  std::ofstream file(persist_path_);
+  file << wh_drained_;
+}
+
+} // namespace mrs_robot_diagnostics::utils

@@ -3,9 +3,7 @@
 #include <netdb.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#include <cstdio>
 #include <cstring>
-#include <fstream>
 #include <sstream>
 
 namespace mrs_robot_diagnostics
@@ -91,11 +89,13 @@ void StateMonitor::initialize() {
     freeaddrinfo(res);
   }
 
-  param_loader.loadParam("robot_diagnostics/wifi_interface", _wifi_interface_, std::string(""));
+  std::string wifi_interface;
+  param_loader.loadParam("robot_diagnostics/wifi_interface", wifi_interface, std::string(""));
 
   auto       main_timer_rate      = param_loader.loadParam2<double>("robot_diagnostics/main_timer_rate");
   auto       error_publisher_rate = param_loader.loadParam2<double>("robot_diagnostics/error_publisher_rate");
   const auto state_timer_rate     = param_loader.loadParam2<double>("robot_diagnostics/state_timer_rate");
+  const auto host_info_rate       = param_loader.loadParam2<double>("robot_diagnostics/host_info_rate");
   not_reporting_delay_            = param_loader.loadParam2<rclcpp::Duration>("robot_diagnostics/not_reporting_delay");
 
   std::string available_sensors_string;
@@ -204,15 +204,20 @@ void StateMonitor::initialize() {
   // | ------------------------- UavInfo ------------------------ |
   ph_uav_info_      = mrs_lib::PublisherHandler<mrs_msgs::msg::UavInfo>(node_, "~/uav_info_out");
   sh_hw_api_status_ = mrs_lib::SubscriberHandler<mrs_msgs::msg::HwApiStatus>(shopts, "~/hw_api_status_in");
-  sh_uav_status_    = mrs_lib::SubscriberHandler<mrs_msgs::msg::UavStatus>(shopts, "~/uav_status_in");
+  sh_tracker_cmd_   = mrs_lib::SubscriberHandler<mrs_msgs::msg::TrackerCommand>(shopts, "~/tracker_cmd_in");
   sh_mass_nominal_  = mrs_lib::SubscriberHandler<std_msgs::msg::Float64>(shopts, "~/mass_nominal_in");
   sh_mass_estimate_ = mrs_lib::SubscriberHandler<std_msgs::msg::Float64>(shopts, "~/mass_estimate_in");
+
+  // | -------- Acquisition utils ------ |
+  host_stats_ = std::make_unique<utils::HostStats>();
+  host_stats_->setWifiInterface(wifi_interface);
+  flight_timer_          = std::make_unique<utils::FlightTimer>(clock_);
+  wh_drained_integrator_ = std::make_unique<utils::WhDrainedIntegrator>(clock_);
 
   preflight_checker_ = std::make_unique<preflight_checker::PreflightChecker>(node_, _robot_name_);
 
   // | -------------------- SystemHealthInfo -------------------- |
   ph_system_health_info_ = mrs_lib::PublisherHandler<mrs_msgs::msg::SystemHealthInfo>(node_, "~/system_health_info_out");
-  last_wifi_read_time_   = clock_->now();
 
   // | ------------------------ UAV state ----------------------- |
   ph_uav_state_ = mrs_lib::PublisherHandler<mrs_msgs::msg::State>(node_, "~/uav_state_out");
@@ -249,6 +254,12 @@ void StateMonitor::initialize() {
     timer_uav_state_ = std::make_shared<TimerType>(timer_opts_start, rclcpp::Rate(state_timer_rate, clock_), callback_fcn);
   }
 
+  {
+    std::function<void()> callback_fcn = std::bind(&StateMonitor::timerHostInfo, this);
+
+    timer_host_info_ = std::make_shared<TimerType>(timer_opts_start, rclcpp::Rate(host_info_rate, clock_), callback_fcn);
+  }
+
   // | --------------------- finish the init -------------------- |
 
   RCLCPP_INFO(node_->get_logger(), " initialized ");
@@ -279,8 +290,24 @@ void StateMonitor::timerMain() {
   const auto       mass_estimate                  = processIncomingMessage(sh_mass_estimate_);
   const auto       mass_nominal                   = processIncomingMessage(sh_mass_nominal_);
   const auto       mpc_tracker_diagnostics        = processIncomingMessage(sh_mpc_tracker_diagnostics_);
-  // TODO: uav status will be refactored, we will get the data directly
-  const auto uav_status = processIncomingMessage(sh_uav_status_);
+
+  // Rate sampling for the three high-level rates exposed in SystemHealthInfo.
+  if (hw_api_status.hasNewMessage && hw_api_status.message != nullptr)
+    rate_hw_api_status_.record(now);
+  if (control_manager_diagnostics.hasNewMessage && control_manager_diagnostics.message != nullptr)
+    rate_control_manager_diag_.record(now);
+  if (estimation_diagnostics.hasNewMessage && estimation_diagnostics.message != nullptr)
+    rate_state_estimation_diag_.record(now);
+
+  // Watt-hour integration on each new battery sample.
+  if (battery_state.hasNewMessage && battery_state.message != nullptr)
+    wh_drained_integrator_->integrate(battery_state.message->voltage, battery_state.message->current);
+
+  // Flight timer advances while a real tracker is active.
+  if (control_manager_diagnostics.message != nullptr) {
+    const bool null_tracker = (control_manager_diagnostics.message->active_tracker == "NullTracker");
+    flight_timer_->tick(null_tracker);
+  }
 
   if (hw_api_status.hasNewMessage || control_manager_diagnostics.hasNewMessage) {
     const auto new_state = parse_uav_state(hw_api_status.message, control_manager_diagnostics.message);
@@ -301,12 +328,12 @@ void StateMonitor::timerMain() {
   if (mpc_tracker_diagnostics.hasNewMessage)
     last_collision_avoidance_info_ = parse_collision_avoidance_info(mpc_tracker_diagnostics.message);
 
-  if (hw_api_status.hasNewMessage || uav_status.hasNewMessage || mass_nominal.hasNewMessage || mass_estimate.hasNewMessage)
-    last_uav_info_ = parse_uav_info(hw_api_status.message, uav_status.message, mass_nominal.message, mass_estimate.message);
+  if (hw_api_status.hasNewMessage || mass_nominal.hasNewMessage || mass_estimate.hasNewMessage)
+    last_uav_info_ = parse_uav_info(hw_api_status.message, mass_nominal.message, mass_estimate.message);
 
-  // Remove update gating on uav_status for system health info, since it contains sensor diagnostics data, which we want to share even if uav_status is not
-  // updating
-  last_system_health_info_ = parse_system_health_info(uav_status.message);
+  // SystemHealthInfo is always rebuilt — host stats + sensor handlers update independently
+  // of any single subscriber, and we want to share them on every tick.
+  last_system_health_info_ = parse_system_health_info();
 
   ph_general_robot_info_.publish(last_general_robot_info_);
   ph_state_estimation_info_.publish(last_state_estimation_info_);
@@ -382,6 +409,13 @@ void StateMonitor::timerUpdateSensorStatus() {
     auto sensor_status_msg = handler->updateStatus();
     available_sensors_.push_back(sensor_status_msg);
   }
+}
+
+void StateMonitor::timerHostInfo() {
+  if (!is_initialized_) {
+    return;
+  }
+  host_stats_->update();
 }
 
 // | ------------------------ callbacks ----------------------- |
@@ -508,12 +542,19 @@ state_t StateMonitor::parse_uav_state(mrs_msgs::msg::HwApiStatus::ConstSharedPtr
   }
 }
 
-mrs_msgs::msg::GeneralRobotInfo StateMonitor::parse_general_robot_info([[maybe_unused]] sensor_msgs::msg::BatteryState::ConstSharedPtr battery_state) {
+mrs_msgs::msg::GeneralRobotInfo StateMonitor::parse_general_robot_info(sensor_msgs::msg::BatteryState::ConstSharedPtr battery_state) {
   mrs_msgs::msg::GeneralRobotInfo msg;
   msg.stamp            = clock_->now();
   msg.robot_name       = _robot_name_;
   msg.robot_type       = static_cast<int>(robot_type_);
   msg.robot_ip_address = robot_ip_address_;
+
+  if (battery_state != nullptr) {
+    msg.battery_state.percentage = battery_state->percentage;
+    msg.battery_state.voltage    = battery_state->voltage;
+    msg.battery_state.current    = battery_state->current;
+  }
+  msg.battery_state.wh_drained = static_cast<float>(wh_drained_integrator_->whDrained());
 
   const auto uav_state      = uav_state_.value();
   const bool state_offboard = uav_state == state_t::OFFBOARD;
@@ -667,68 +708,49 @@ StateMonitor::parse_collision_avoidance_info(mrs_msgs::msg::MpcTrackerDiagnostic
 }
 
 mrs_msgs::msg::UavInfo StateMonitor::parse_uav_info(mrs_msgs::msg::HwApiStatus::ConstSharedPtr hw_api_status,
-                                                    mrs_msgs::msg::UavStatus::ConstSharedPtr uav_status, std_msgs::msg::Float64::ConstSharedPtr mass_nominal,
-                                                    std_msgs::msg::Float64::ConstSharedPtr mass_estimate) {
+                                                    std_msgs::msg::Float64::ConstSharedPtr mass_nominal, std_msgs::msg::Float64::ConstSharedPtr mass_estimate) {
   mrs_msgs::msg::UavInfo msg;
 
-  const bool is_hw_api_status_valid = hw_api_status != nullptr;
-  const bool is_uav_status_valid    = uav_status != nullptr;
-  const bool is_mass_nominal_valid  = mass_nominal != nullptr;
-  const bool is_mass_estimate_valid = mass_estimate != nullptr;
-
-  if (is_hw_api_status_valid) {
+  if (hw_api_status != nullptr) {
     msg.armed    = hw_api_status->armed;
     msg.offboard = hw_api_status->offboard;
   }
 
-  if (is_uav_status_valid)
-    msg.flight_duration = uav_status->secs_flown;
+  msg.flight_duration = static_cast<float>(flight_timer_->secsFlown());
+  msg.flight_state    = to_string(uav_state_.value());
 
-  msg.flight_state = to_string(uav_state_.value());
-
-  if (is_mass_nominal_valid)
+  if (mass_nominal != nullptr)
     msg.mass_nominal = mass_nominal->data;
 
-  if (is_mass_estimate_valid)
+  if (mass_estimate != nullptr)
     msg.mass_estimate = mass_estimate->data;
 
   return msg;
 }
 
-mrs_msgs::msg::SystemHealthInfo StateMonitor::parse_system_health_info(mrs_msgs::msg::UavStatus::ConstSharedPtr uav_status) {
+mrs_msgs::msg::SystemHealthInfo StateMonitor::parse_system_health_info() {
   mrs_msgs::msg::SystemHealthInfo msg;
 
-  const bool is_uav_status_valid = uav_status != nullptr;
+  // Host CPU / RAM / disk / per-node CPU loads / WiFi
+  const auto snap                             = host_stats_->snapshot();
+  msg.onboard_computer_info.cpu_load          = snap.cpu_load;
+  msg.onboard_computer_info.cpu_ghz           = snap.cpu_ghz;
+  msg.onboard_computer_info.cpu_temperature   = snap.cpu_temperature;
+  msg.onboard_computer_info.free_ram          = snap.free_ram;
+  msg.onboard_computer_info.total_ram         = snap.total_ram;
+  msg.onboard_computer_info.free_hdd          = snap.free_hdd;
+  msg.onboard_computer_info.node_cpu_loads    = snap.node_cpu_loads;
+  msg.onboard_computer_info.wifi_interface    = snap.wifi_interface;
+  msg.onboard_computer_info.wifi_signal_dbm   = snap.wifi_signal_dbm;
+  msg.onboard_computer_info.wifi_link_quality = snap.wifi_link_quality;
 
-  if (is_uav_status_valid) {
-    msg.onboard_computer_info.cpu_load  = uav_status->cpu_load;
-    msg.onboard_computer_info.free_ram  = uav_status->free_ram;
-    msg.onboard_computer_info.total_ram = uav_status->total_ram;
-    msg.onboard_computer_info.free_hdd  = uav_status->free_hdd;
-    const size_t n                      = std::min(uav_status->node_cpu_loads.cpu_loads.size(), uav_status->node_cpu_loads.node_names.size());
-    for (size_t it = 0; it < n; it++) {
-      mrs_msgs::msg::CpuLoad node_cpu_load;
-      node_cpu_load.node_name = uav_status->node_cpu_loads.node_names.at(it);
-      node_cpu_load.cpu_load  = uav_status->node_cpu_loads.cpu_loads.at(it);
-      msg.onboard_computer_info.node_cpu_loads.push_back(node_cpu_load);
-    }
-
-    msg.hw_api_rate           = uav_status->hw_api_hz;
-    msg.control_manager_rate  = uav_status->control_manager_diag_hz;
-    msg.state_estimation_rate = uav_status->odom_hz;
-  }
-
-  // Get Wifi info from the system
-  const auto wifi = readWifiInfo();
-  if (!wifi.interface.empty()) {
-    msg.onboard_computer_info.wifi_interface    = wifi.interface;
-    msg.onboard_computer_info.wifi_signal_dbm   = wifi.signal_dbm;
-    msg.onboard_computer_info.wifi_link_quality = wifi.link_quality;
-  }
+  // Rates of the three flagship diagnostics-input topics — sampled in timerMain().
+  msg.hw_api_rate           = static_cast<float>(rate_hw_api_status_.rate());
+  msg.control_manager_rate  = static_cast<float>(rate_control_manager_diag_.rate());
+  msg.state_estimation_rate = static_cast<float>(rate_state_estimation_diag_.rate());
 
   {
     std::scoped_lock lck(mutex_sensor_handler_list_);
-    // Get sensor status from handlers
     msg.available_sensors = available_sensors_;
   }
 
@@ -771,60 +793,6 @@ mrs_msgs::msg::StateEstimationInfo StateMonitor::init_state_estimation_info() {
   msg.current_estimator = "unknown";
 
   return msg;
-}
-
-StateMonitor::WifiInfo StateMonitor::readWifiInfo() {
-
-  // return cached value if less than WIFI_READ_INTERVAL_S has passed
-  const auto now = clock_->now();
-  if ((now - last_wifi_read_time_).seconds() < WIFI_READ_INTERVAL_S) {
-    return cached_wifi_info_;
-  }
-  last_wifi_read_time_ = now;
-
-  WifiInfo info;
-
-  std::ifstream file("/proc/net/wireless");
-  if (!file.is_open()) {
-    cached_wifi_info_ = info;
-    return info;
-  }
-
-  std::string line;
-
-  // skip 2 header lines
-  std::getline(file, line);
-  std::getline(file, line);
-
-  while (std::getline(file, line)) {
-    char  iface_buf[64] = {};
-    int   status = 0, link = 0;
-    float level = 0.0f, noise = 0.0f;
-
-    if (std::sscanf(line.c_str(), "%63s %d %d. %f. %f.", iface_buf, &status, &link, &level, &noise) < 4) {
-      continue;
-    }
-
-    // remove trailing colon from interface name (e.g. "wlp2s0:" -> "wlp2s0")
-    std::string iface(iface_buf);
-    if (!iface.empty() && iface.back() == ':') {
-      iface.pop_back();
-    }
-
-    // if a specific interface is configured, only match that one
-    if (!_wifi_interface_.empty() && iface != _wifi_interface_) {
-      continue;
-    }
-
-    info.interface    = iface;
-    info.signal_dbm   = level;
-    info.link_quality = link;
-    cached_wifi_info_ = info;
-    return info;
-  }
-
-  cached_wifi_info_ = info;
-  return info;
 }
 
 } // namespace state_monitor

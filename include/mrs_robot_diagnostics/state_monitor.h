@@ -38,9 +38,9 @@
 #include <mrs_msgs/msg/sensor_status.hpp>
 #include <mrs_msgs/msg/state_estimation_info.hpp>
 #include <mrs_msgs/msg/system_health_info.hpp>
+#include <mrs_msgs/msg/tracker_command.hpp>
 #include <mrs_msgs/msg/uav_info.hpp>
 #include <mrs_msgs/msg/uav_state.hpp>
-#include <mrs_msgs/msg/uav_status.hpp>
 #include <std_msgs/msg/float64.hpp>
 
 #include <std_msgs/msg/bool.hpp>
@@ -69,8 +69,11 @@
 #include <mrs_robot_diagnostics/sensor_handler.h>
 #include <mrs_robot_diagnostics/preflight_checker.h>
 
-#include <limits>
-#include <map>
+#include <mrs_robot_diagnostics/utils/flight_timer.h>
+#include <mrs_robot_diagnostics/utils/host_stats.h>
+#include <mrs_robot_diagnostics/utils/rate_tracker.h>
+#include <mrs_robot_diagnostics/utils/wh_drained_integrator.h>
+
 #include <memory>
 #include <mutex>
 #include <string>
@@ -178,40 +181,31 @@ private:
   mrs_lib::SubscriberHandler<mrs_msgs::msg::MpcTrackerDiagnostics> sh_mpc_tracker_diagnostics_;
 
   // | ------------------------- UavInfo ------------------------ |
-  mrs_lib::PublisherHandler<mrs_msgs::msg::UavInfo>      ph_uav_info_;
-  mrs_msgs::msg::UavInfo                                 last_uav_info_;
-  mrs_lib::SubscriberHandler<mrs_msgs::msg::HwApiStatus> sh_hw_api_status_;
-  mrs_lib::SubscriberHandler<mrs_msgs::msg::UavStatus>   sh_uav_status_;
-  mrs_lib::SubscriberHandler<std_msgs::msg::Float64>     sh_mass_nominal_;
-  mrs_lib::SubscriberHandler<std_msgs::msg::Float64>     sh_mass_estimate_;
+  mrs_lib::PublisherHandler<mrs_msgs::msg::UavInfo>         ph_uav_info_;
+  mrs_msgs::msg::UavInfo                                    last_uav_info_;
+  mrs_lib::SubscriberHandler<mrs_msgs::msg::HwApiStatus>    sh_hw_api_status_;
+  mrs_lib::SubscriberHandler<mrs_msgs::msg::TrackerCommand> sh_tracker_cmd_;
+  mrs_lib::SubscriberHandler<std_msgs::msg::Float64>        sh_mass_nominal_;
+  mrs_lib::SubscriberHandler<std_msgs::msg::Float64>        sh_mass_estimate_;
 
   // | -------------------- SystemHealthInfo -------------------- |
   mrs_lib::PublisherHandler<mrs_msgs::msg::SystemHealthInfo>  ph_system_health_info_;
   mrs_msgs::msg::SystemHealthInfo                             last_system_health_info_;
   mrs_lib::SubscriberHandler<sensor_msgs::msg::MagneticField> sh_hw_api_magnetic_field_;
 
-  // | ---------------------- WiFi info ----------------------- |
+  // | -------------------- Acquisition utils ------------------- |
+  // Host stats / flight timer / wh-drained integrator
+  std::unique_ptr<utils::HostStats>           host_stats_;
+  std::unique_ptr<utils::FlightTimer>         flight_timer_;
+  std::unique_ptr<utils::WhDrainedIntegrator> wh_drained_integrator_;
 
-  /**
-   * @brief Cached WiFi link information read from /proc/net/wireless.
-   */
-  struct WifiInfo
-  {
-    std::string interface;                                              ///< interface name (e.g. "wlp2s0"), empty if unavailable
-    float       signal_dbm   = std::numeric_limits<float>::quiet_NaN(); ///< RSSI in dBm (e.g. -46)
-    int32_t     link_quality = -1;                                      ///< driver-reported link quality (0-70 typical)
-  };
+  utils::RateTracker rate_hw_api_status_;
+  utils::RateTracker rate_control_manager_diag_;
+  utils::RateTracker rate_state_estimation_diag_;
 
-  std::string             _wifi_interface_; ///< configurable interface name, empty = auto-detect first
-  WifiInfo                cached_wifi_info_;
-  rclcpp::Time            last_wifi_read_time_;
-  static constexpr double WIFI_READ_INTERVAL_S = 1.0; ///< minimum interval between /proc/net/wireless reads
-
-  /**
-   * @brief Read WiFi signal info from /proc/net/wireless with 1 Hz caching.
-   * @return WifiInfo struct with current signal data, or defaults (NaN/-1) if unavailable.
-   */
-  WifiInfo readWifiInfo();
+  /** @brief 1 Hz refresh of /proc-backed stats. */
+  std::shared_ptr<TimerType> timer_host_info_;
+  void                       timerHostInfo();
 
   // | ------------------------ UAV state ----------------------- |
   mrs_lib::PublisherHandler<mrs_msgs::msg::State> ph_uav_state_;
@@ -297,12 +291,12 @@ private:
   /** @brief Build CollisionAvoidanceInfo from MPC tracker diagnostics. */
   mrs_msgs::msg::CollisionAvoidanceInfo parse_collision_avoidance_info(mrs_msgs::msg::MpcTrackerDiagnostics::ConstSharedPtr mpc_tracker_diagnostics);
 
-  /** @brief Build UavInfo from HW API status, UAV status, and mass estimates. */
-  mrs_msgs::msg::UavInfo parse_uav_info(mrs_msgs::msg::HwApiStatus::ConstSharedPtr hw_api_status, mrs_msgs::msg::UavStatus::ConstSharedPtr uav_status,
-                                        std_msgs::msg::Float64::ConstSharedPtr mass_nominal, std_msgs::msg::Float64::ConstSharedPtr mass_estimate);
+  /** @brief Build UavInfo from HW API status, locally-tracked flight timer, and mass estimates. */
+  mrs_msgs::msg::UavInfo parse_uav_info(mrs_msgs::msg::HwApiStatus::ConstSharedPtr hw_api_status, std_msgs::msg::Float64::ConstSharedPtr mass_nominal,
+                                        std_msgs::msg::Float64::ConstSharedPtr mass_estimate);
 
-  /** @brief Build SystemHealthInfo from UAV status, GNSS, magnetometer, RC RSSI, and WiFi. */
-  mrs_msgs::msg::SystemHealthInfo parse_system_health_info(mrs_msgs::msg::UavStatus::ConstSharedPtr uav_status);
+  /** @brief Build SystemHealthInfo from locally-collected host stats, rate trackers, sensor handlers, and WiFi. */
+  mrs_msgs::msg::SystemHealthInfo parse_system_health_info();
 
   // | ------------------- Init methods ------------------------- |
 

@@ -290,6 +290,7 @@ void StateMonitor::timerMain() {
   const auto       mass_estimate                  = processIncomingMessage(sh_mass_estimate_);
   const auto       mass_nominal                   = processIncomingMessage(sh_mass_nominal_);
   const auto       mpc_tracker_diagnostics        = processIncomingMessage(sh_mpc_tracker_diagnostics_);
+  const auto       tracker_cmd                    = processIncomingMessage(sh_tracker_cmd_);
 
   // Rate sampling for the three high-level rates exposed in SystemHealthInfo.
   if (hw_api_status.hasNewMessage && hw_api_status.message != nullptr)
@@ -321,9 +322,9 @@ void StateMonitor::timerMain() {
         parse_state_estimation_info(estimation_diagnostics.message, control_manager_heading.message, hw_api_gnss.message, hw_api_mag_heading.message);
 
   if (control_manager_diagnostics.hasNewMessage || control_manager_thrust.hasNewMessage || constraint_manager_diagnostics.hasNewMessage ||
-      gain_manager_diagnostics.hasNewMessage)
+      gain_manager_diagnostics.hasNewMessage || tracker_cmd.hasNewMessage)
     last_control_info_ = parse_control_info(control_manager_diagnostics.message, constraint_manager_diagnostics.message, gain_manager_diagnostics.message,
-                                            control_manager_thrust.message);
+                                            control_manager_thrust.message, tracker_cmd.message);
 
   if (mpc_tracker_diagnostics.hasNewMessage)
     last_collision_avoidance_info_ = parse_collision_avoidance_info(mpc_tracker_diagnostics.message);
@@ -660,7 +661,8 @@ mrs_msgs::msg::StateEstimationInfo StateMonitor::parse_state_estimation_info(mrs
 mrs_msgs::msg::ControlInfo StateMonitor::parse_control_info(mrs_msgs::msg::ControlManagerDiagnostics::ConstSharedPtr    control_manager_diagnostics,
                                                             mrs_msgs::msg::ConstraintManagerDiagnostics::ConstSharedPtr constraint_manager_diagnostics,
                                                             mrs_msgs::msg::GainManagerDiagnostics::ConstSharedPtr       gain_manager_diagnostics,
-                                                            std_msgs::msg::Float64::ConstSharedPtr                      thrust) {
+                                                            std_msgs::msg::Float64::ConstSharedPtr                      thrust,
+                                                            mrs_msgs::msg::TrackerCommand::ConstSharedPtr               tracker_cmd) {
 
   mrs_msgs::msg::ControlInfo msg;
 
@@ -668,12 +670,18 @@ mrs_msgs::msg::ControlInfo StateMonitor::parse_control_info(mrs_msgs::msg::Contr
   const bool is_constraint_manager_diagnostics_valid = constraint_manager_diagnostics != nullptr;
   const bool is_gain_manager_diagnostics_valid       = gain_manager_diagnostics != nullptr;
   const bool is_thrust_valid                         = thrust != nullptr;
+  const bool is_tracker_cmd_valid                    = tracker_cmd != nullptr;
 
   if (is_control_manager_diagnostics_valid) {
     msg.active_controller     = control_manager_diagnostics->active_controller;
     msg.available_controllers = control_manager_diagnostics->available_controllers;
     msg.active_tracker        = control_manager_diagnostics->active_tracker;
     msg.available_trackers    = control_manager_diagnostics->available_trackers;
+
+    msg.flying_normally     = control_manager_diagnostics->flying_normally;
+    msg.have_goal           = control_manager_diagnostics->tracker_status.have_goal;
+    msg.tracking_trajectory = control_manager_diagnostics->tracker_status.tracking_trajectory;
+    msg.callbacks_enabled   = control_manager_diagnostics->tracker_status.callbacks_enabled;
   }
 
   if (is_thrust_valid)
@@ -687,6 +695,11 @@ mrs_msgs::msg::ControlInfo StateMonitor::parse_control_info(mrs_msgs::msg::Contr
   if (is_gain_manager_diagnostics_valid) {
     msg.active_gains    = gain_manager_diagnostics->current_name;
     msg.available_gains = gain_manager_diagnostics->available;
+  }
+
+  if (is_tracker_cmd_valid) {
+    msg.cmd_pose.position = tracker_cmd->position;
+    msg.cmd_pose.heading  = tracker_cmd->heading;
   }
 
   return msg;

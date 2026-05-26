@@ -21,7 +21,6 @@ std::vector<diagnostic_msgs::msg::KeyValue> MagnetometerHandler::fill_details() 
   auto magnetic_field_msg = sh_magnetic_field_.getMsg();
 
   if (!magnetic_field_msg) {
-    // Initialize with default values if no GPS data has been received yet
     diagnostic_msgs::msg::KeyValue info;
     info.key   = "strength";
     info.value = "nan";
@@ -29,17 +28,33 @@ std::vector<diagnostic_msgs::msg::KeyValue> MagnetometerHandler::fill_details() 
     info.key   = "uncertainty";
     info.value = "nan";
     details.push_back(info);
+    info.key   = "norm_gauss";
+    info.value = "nan";
+    details.push_back(info);
+    info.key   = "norm_hz";
+    info.value = std::to_string(measured_rate_);
+    details.push_back(info);
   } else {
     diagnostic_msgs::msg::KeyValue info;
     info.key                  = "uncertainty";
     const Eigen::Matrix3d cov = cov2eigen(magnetic_field_msg->magnetic_field_covariance);
     info.value                = std::to_string(std::cbrt(cov.determinant()));
-    // Add uncertainty
     details.push_back(info);
-    info.key = "strength";
+
     const Eigen::Vector3d mag(magnetic_field_msg->magnetic_field.x, magnetic_field_msg->magnetic_field.y, magnetic_field_msg->magnetic_field.z);
-    info.value = std::to_string(mag.norm());
-    // Add strength
+    const double          norm_tesla = mag.norm();
+
+    info.key   = "strength";
+    info.value = std::to_string(norm_tesla);
+    details.push_back(info);
+
+    // sensor_msgs/MagneticField publishes Tesla; the TUI consumes Gauss (1 T = 1e4 G).
+    info.key   = "norm_gauss";
+    info.value = std::to_string(norm_tesla * 1.0e4);
+    details.push_back(info);
+
+    info.key   = "norm_hz";
+    info.value = std::to_string(measured_rate_);
     details.push_back(info);
   }
 

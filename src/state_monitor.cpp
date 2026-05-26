@@ -641,6 +641,12 @@ mrs_msgs::msg::StateEstimationInfo StateMonitor::parse_state_estimation_info(mrs
 
     msg.running_estimators    = estimation_diagnostics->running_state_estimators;
     msg.switchable_estimators = estimation_diagnostics->switchable_state_estimators;
+
+    msg.horizontal_estimator = estimation_diagnostics->estimator_horizontal;
+    msg.vertical_estimator   = estimation_diagnostics->estimator_vertical;
+    msg.heading_estimator    = estimation_diagnostics->estimator_heading;
+    msg.agl_estimator        = estimation_diagnostics->estimator_agl_height;
+    msg.max_flight_z         = static_cast<float>(estimation_diagnostics->max_flight_z);
   }
 
   if (is_local_heading_valid)

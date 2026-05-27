@@ -324,7 +324,7 @@ void StateMonitor::timerMain() {
                                             control_manager_thrust.message, tracker_cmd.message);
 
   if (mpc_tracker_diagnostics.hasNewMessage)
-    last_collision_avoidance_info_ = parse_collision_avoidance_info(mpc_tracker_diagnostics.message);
+    last_collision_avoidance_info_ = parse_collision_avoidance_info(mpc_tracker_diagnostics.message, control_manager_diagnostics.message);
 
   if (hw_api_status.hasNewMessage || mass_nominal.hasNewMessage || mass_estimate.hasNewMessage)
     last_uav_info_ = parse_uav_info(hw_api_status.message, mass_nominal.message, mass_estimate.message);
@@ -722,14 +722,15 @@ mrs_msgs::msg::ControlInfo StateMonitor::parse_control_info(mrs_msgs::msg::Contr
 }
 
 mrs_msgs::msg::CollisionAvoidanceInfo
-StateMonitor::parse_collision_avoidance_info(mrs_msgs::msg::MpcTrackerDiagnostics::ConstSharedPtr mpc_tracker_diagnostics) {
+StateMonitor::parse_collision_avoidance_info(mrs_msgs::msg::MpcTrackerDiagnostics::ConstSharedPtr mpc_tracker_diagnostics, mrs_msgs::msg::ControlManagerDiagnostics::ConstSharedPtr control_manager_diagnostics) { 
   mrs_msgs::msg::CollisionAvoidanceInfo msg;
 
   const bool is_mpc_tracker_diagnostics_valid = mpc_tracker_diagnostics != nullptr;
+  const bool is_control_manager_diagnostics_valid = control_manager_diagnostics != nullptr;
 
-  if (is_mpc_tracker_diagnostics_valid) {
-    msg.collision_avoidance_enabled = mpc_tracker_diagnostics->collision_avoidance_active;
-    msg.avoiding_collision          = mpc_tracker_diagnostics->avoiding_collision;
+  if (is_mpc_tracker_diagnostics_valid && is_control_manager_diagnostics_valid) {
+    msg.collision_avoidance_enabled = mpc_tracker_diagnostics->collision_avoidance_active || control_manager_diagnostics->bumper_active;
+    msg.avoiding_collision          = mpc_tracker_diagnostics->avoiding_collision || control_manager_diagnostics->bumper_active;
     msg.other_robots_visible        = mpc_tracker_diagnostics->avoidance_active_uavs;
   }
 

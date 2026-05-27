@@ -297,7 +297,8 @@ private:
                                                 std_msgs::msg::Float64::ConstSharedPtr thrust, mrs_msgs::msg::TrackerCommand::ConstSharedPtr tracker_cmd);
 
   /** @brief Build CollisionAvoidanceInfo from MPC tracker diagnostics. */
-  mrs_msgs::msg::CollisionAvoidanceInfo parse_collision_avoidance_info(mrs_msgs::msg::MpcTrackerDiagnostics::ConstSharedPtr mpc_tracker_diagnostics);
+  mrs_msgs::msg::CollisionAvoidanceInfo parse_collision_avoidance_info(mrs_msgs::msg::MpcTrackerDiagnostics::ConstSharedPtr mpc_tracker_diagnostics,
+                                                                      mrs_msgs::msg::ControlManagerDiagnostics::ConstSharedPtr control_manager_diagnostics);
 
   /** @brief Build UavInfo from HW API status, locally-tracked flight timer, and mass estimates. */
   mrs_msgs::msg::UavInfo parse_uav_info(mrs_msgs::msg::HwApiStatus::ConstSharedPtr hw_api_status, std_msgs::msg::Float64::ConstSharedPtr mass_nominal,

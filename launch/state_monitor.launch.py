@@ -187,6 +187,8 @@ def generate_launch_description():
             ("~/hw_api_mag_heading_in", "hw_api/mag_heading"),
             ("~/hw_api_rc_rssi_in", "hw_api/rc_rssi"),
             ("~/hw_api_status_in", "hw_api/status"),
+            ("~/hw_api_odometry_in", "hw_api/odometry"),
+            ("~/estimator_uav_state_in", "estimation_manager/uav_state"),
             ("~/safety_area_manager_diagnostics_in", "safety_area_manager/diagnostics"),
             ("~/mass_estimate_in", "control_manager/mass_estimate"),
             ("~/mass_nominal_in", "control_manager/mass_nominal"),

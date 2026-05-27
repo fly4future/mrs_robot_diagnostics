@@ -35,6 +35,7 @@ set(DEPENDENCIES
   rclcpp_components
   mrs_msgs
   mrs_lib
+  nav_msgs
   tf2_ros
   pluginlib
   diagnostic_msgs

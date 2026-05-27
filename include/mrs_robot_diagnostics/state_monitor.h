@@ -43,6 +43,8 @@
 #include <mrs_msgs/msg/uav_state.hpp>
 #include <std_msgs/msg/float64.hpp>
 
+#include <nav_msgs/msg/odometry.hpp>
+
 #include <std_msgs/msg/bool.hpp>
 #include <sensor_msgs/msg/battery_state.hpp>
 #include <sensor_msgs/msg/imu.hpp>
@@ -193,15 +195,23 @@ private:
   mrs_msgs::msg::SystemHealthInfo                             last_system_health_info_;
   mrs_lib::SubscriberHandler<sensor_msgs::msg::MagneticField> sh_hw_api_magnetic_field_;
 
+  // High-rate truth streams used only for rate sampling — feeds hw_api_rate
+  // and state_estimation_rate. hw_api/status and estimation_manager/diagnostics
+  // are summary topics at lower rates and would underreport.
+  mrs_lib::SubscriberHandler<nav_msgs::msg::Odometry> sh_hw_api_odometry_;
+  mrs_lib::SubscriberHandler<mrs_msgs::msg::UavState> sh_estimator_uav_state_;
+
   // | -------------------- Acquisition utils ------------------- |
   // Host stats / flight timer / wh-drained integrator
   std::unique_ptr<utils::HostStats>           host_stats_;
   std::unique_ptr<utils::FlightTimer>         flight_timer_;
   std::unique_ptr<utils::WhDrainedIntegrator> wh_drained_integrator_;
 
-  utils::RateTracker rate_hw_api_status_;
-  utils::RateTracker rate_control_manager_diag_;
-  utils::RateTracker rate_state_estimation_diag_;
+  // 50-sample window over a ~100 Hz source ≈ 500 ms — smooths timer-tick jitter
+  // (default RateTracker window of 10 surfaced ±10% noise on every frame).
+  utils::RateTracker rate_hw_api_odometry_{50};
+  utils::RateTracker rate_control_manager_diag_{50};
+  utils::RateTracker rate_estimator_uav_state_{50};
 
   /** @brief 1 Hz refresh of /proc-backed stats. */
   std::shared_ptr<TimerType> timer_host_info_;

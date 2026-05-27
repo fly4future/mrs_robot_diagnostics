@@ -219,6 +219,10 @@ void StateMonitor::initialize() {
   // | -------------------- SystemHealthInfo -------------------- |
   ph_system_health_info_ = mrs_lib::PublisherHandler<mrs_msgs::msg::SystemHealthInfo>(node_, "~/system_health_info_out");
 
+  // High-rate truth streams sampled for the SystemHealthInfo rate fields.
+  sh_hw_api_odometry_     = mrs_lib::SubscriberHandler<nav_msgs::msg::Odometry>(shopts, "~/hw_api_odometry_in");
+  sh_estimator_uav_state_ = mrs_lib::SubscriberHandler<mrs_msgs::msg::UavState>(shopts, "~/estimator_uav_state_in");
+
   // | ------------------------ UAV state ----------------------- |
   ph_uav_state_ = mrs_lib::PublisherHandler<mrs_msgs::msg::State>(node_, "~/uav_state_out");
 
@@ -291,14 +295,18 @@ void StateMonitor::timerMain() {
   const auto       mass_nominal                   = processIncomingMessage(sh_mass_nominal_);
   const auto       mpc_tracker_diagnostics        = processIncomingMessage(sh_mpc_tracker_diagnostics_);
   const auto       tracker_cmd                    = processIncomingMessage(sh_tracker_cmd_);
+  const auto       hw_api_odometry                = processIncomingMessage(sh_hw_api_odometry_);
+  const auto       estimator_uav_state            = processIncomingMessage(sh_estimator_uav_state_);
 
   // Rate sampling for the three high-level rates exposed in SystemHealthInfo.
-  if (hw_api_status.hasNewMessage && hw_api_status.message != nullptr)
-    rate_hw_api_status_.record(now);
+  // hw_api/odometry and estimation_manager/uav_state are the high-rate truth
+  // streams; 
+  if (hw_api_odometry.hasNewMessage && hw_api_odometry.message != nullptr)
+    rate_hw_api_odometry_.record(now);
   if (control_manager_diagnostics.hasNewMessage && control_manager_diagnostics.message != nullptr)
     rate_control_manager_diag_.record(now);
-  if (estimation_diagnostics.hasNewMessage && estimation_diagnostics.message != nullptr)
-    rate_state_estimation_diag_.record(now);
+  if (estimator_uav_state.hasNewMessage && estimator_uav_state.message != nullptr)
+    rate_estimator_uav_state_.record(now);
 
   // Watt-hour integration on each new battery sample.
   if (battery_state.hasNewMessage && battery_state.message != nullptr)
@@ -763,10 +771,12 @@ mrs_msgs::msg::SystemHealthInfo StateMonitor::parse_system_health_info() {
   msg.onboard_computer_info.wifi_signal_dbm   = snap.wifi_signal_dbm;
   msg.onboard_computer_info.wifi_link_quality = snap.wifi_link_quality;
 
-  // Rates of the three flagship diagnostics-input topics — sampled in timerMain().
-  msg.hw_api_rate           = static_cast<float>(rate_hw_api_status_.rate());
+  // Rates of the three flagship topics — sampled in timerMain(). hw_api_rate
+  // tracks hw_api/odometry (high-rate platform stream); state_estimation_rate
+  // tracks estimation_manager/uav_state (high-rate estimator output).
+  msg.hw_api_rate           = static_cast<float>(rate_hw_api_odometry_.rate());
   msg.control_manager_rate  = static_cast<float>(rate_control_manager_diag_.rate());
-  msg.state_estimation_rate = static_cast<float>(rate_state_estimation_diag_.rate());
+  msg.state_estimation_rate = static_cast<float>(rate_estimator_uav_state_.rate());
 
   {
     std::scoped_lock lck(mutex_sensor_handler_list_);

@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <deque>
+#include <mutex>
 
 #include <rclcpp/rclcpp.hpp>
 
@@ -12,8 +13,8 @@ namespace mrs_robot_diagnostics::utils
  * @brief Sliding-window message-rate tracker.
  *
  * Records arrival timestamps and computes the average rate over the most recent
- * window. Not thread-safe — callers are expected to synchronise externally if
- * the record() and rate() calls can race.
+ * window. Internally synchronised — record() may be called from a subscriber
+ * callback thread while rate() is read from a timer thread.
  */
 class RateTracker {
 public:
@@ -23,6 +24,7 @@ public:
 
   /** @brief Record a new message arrival at @p t. */
   void record(const rclcpp::Time &t) {
+    std::scoped_lock lck(mtx_);
     timestamps_.push_back(t);
     if (timestamps_.size() > window_size_) {
       timestamps_.pop_front();
@@ -31,6 +33,7 @@ public:
 
   /** @brief Average rate over the current window, or 0.0 if insufficient samples. */
   double rate() const {
+    std::scoped_lock lck(mtx_);
     if (timestamps_.size() < 2) {
       return 0.0;
     }
@@ -42,10 +45,12 @@ public:
   }
 
   void clear() {
+    std::scoped_lock lck(mtx_);
     timestamps_.clear();
   }
 
 private:
+  mutable std::mutex       mtx_;
   std::size_t              window_size_;
   std::deque<rclcpp::Time> timestamps_;
 };

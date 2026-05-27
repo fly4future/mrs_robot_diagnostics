@@ -193,7 +193,8 @@ void StateMonitor::initialize() {
   // | ----------------------- ControlInfo ---------------------- |
   ph_control_info_                   = mrs_lib::PublisherHandler<mrs_msgs::msg::ControlInfo>(node_, "~/control_info_out");
   sh_constraint_manager_diagnostics_ = mrs_lib::SubscriberHandler<mrs_msgs::msg::ConstraintManagerDiagnostics>(shopts, "~/constraint_manager_diagnostics_in");
-  sh_control_manager_diagnostics_    = mrs_lib::SubscriberHandler<mrs_msgs::msg::ControlManagerDiagnostics>(shopts, "~/control_manager_diagnostics_in");
+  sh_control_manager_diagnostics_    = mrs_lib::SubscriberHandler<mrs_msgs::msg::ControlManagerDiagnostics>(shopts, "~/control_manager_diagnostics_in",
+                                                                                                            &StateMonitor::cbk_control_manager_diag_rate, this);
   sh_control_manager_thrust_         = mrs_lib::SubscriberHandler<std_msgs::msg::Float64>(shopts, "~/control_manager_thrust_in");
   sh_gain_manager_diagnostics_       = mrs_lib::SubscriberHandler<mrs_msgs::msg::GainManagerDiagnostics>(shopts, "~/gain_manager_diagnostics_in");
 
@@ -219,9 +220,9 @@ void StateMonitor::initialize() {
   // | -------------------- SystemHealthInfo -------------------- |
   ph_system_health_info_ = mrs_lib::PublisherHandler<mrs_msgs::msg::SystemHealthInfo>(node_, "~/system_health_info_out");
 
-  // High-rate truth streams sampled for the SystemHealthInfo rate fields.
-  sh_hw_api_odometry_     = mrs_lib::SubscriberHandler<nav_msgs::msg::Odometry>(shopts, "~/hw_api_odometry_in");
-  sh_estimator_uav_state_ = mrs_lib::SubscriberHandler<mrs_msgs::msg::UavState>(shopts, "~/estimator_uav_state_in");
+  sh_hw_api_odometry_ = mrs_lib::SubscriberHandler<nav_msgs::msg::Odometry>(shopts, "~/hw_api_odometry_in", &StateMonitor::cbk_hw_api_odometry_rate, this);
+  sh_estimator_uav_state_ =
+      mrs_lib::SubscriberHandler<mrs_msgs::msg::UavState>(shopts, "~/estimator_uav_state_in", &StateMonitor::cbk_estimator_uav_state_rate, this);
 
   // | ------------------------ UAV state ----------------------- |
   ph_uav_state_ = mrs_lib::PublisherHandler<mrs_msgs::msg::State>(node_, "~/uav_state_out");
@@ -295,18 +296,6 @@ void StateMonitor::timerMain() {
   const auto       mass_nominal                   = processIncomingMessage(sh_mass_nominal_);
   const auto       mpc_tracker_diagnostics        = processIncomingMessage(sh_mpc_tracker_diagnostics_);
   const auto       tracker_cmd                    = processIncomingMessage(sh_tracker_cmd_);
-  const auto       hw_api_odometry                = processIncomingMessage(sh_hw_api_odometry_);
-  const auto       estimator_uav_state            = processIncomingMessage(sh_estimator_uav_state_);
-
-  // Rate sampling for the three high-level rates exposed in SystemHealthInfo.
-  // hw_api/odometry and estimation_manager/uav_state are the high-rate truth
-  // streams; 
-  if (hw_api_odometry.hasNewMessage && hw_api_odometry.message != nullptr)
-    rate_hw_api_odometry_.record(now);
-  if (control_manager_diagnostics.hasNewMessage && control_manager_diagnostics.message != nullptr)
-    rate_control_manager_diag_.record(now);
-  if (estimator_uav_state.hasNewMessage && estimator_uav_state.message != nullptr)
-    rate_estimator_uav_state_.record(now);
 
   // Watt-hour integration on each new battery sample.
   if (battery_state.hasNewMessage && battery_state.message != nullptr)
@@ -432,6 +421,19 @@ void StateMonitor::timerHostInfo() {
 void StateMonitor::cbk_errorgraph_element(const mrs_msgs::msg::ErrorgraphElement::ConstSharedPtr element_msg) {
   std::scoped_lock lck(errorgraph_mtx_);
   errorgraph_.add_element_from_msg(*element_msg);
+}
+
+// Rate-counting callbacks — record the arrival timestamp exactly once per message.
+void StateMonitor::cbk_hw_api_odometry_rate(const nav_msgs::msg::Odometry::ConstSharedPtr /*msg*/) {
+  rate_hw_api_odometry_.record(clock_->now());
+}
+
+void StateMonitor::cbk_estimator_uav_state_rate(const mrs_msgs::msg::UavState::ConstSharedPtr /*msg*/) {
+  rate_estimator_uav_state_.record(clock_->now());
+}
+
+void StateMonitor::cbk_control_manager_diag_rate(const mrs_msgs::msg::ControlManagerDiagnostics::ConstSharedPtr /*msg*/) {
+  rate_control_manager_diag_.record(clock_->now());
 }
 
 // | -------------------- support functions ------------------- |
@@ -771,9 +773,6 @@ mrs_msgs::msg::SystemHealthInfo StateMonitor::parse_system_health_info() {
   msg.onboard_computer_info.wifi_signal_dbm   = snap.wifi_signal_dbm;
   msg.onboard_computer_info.wifi_link_quality = snap.wifi_link_quality;
 
-  // Rates of the three flagship topics — sampled in timerMain(). hw_api_rate
-  // tracks hw_api/odometry (high-rate platform stream); state_estimation_rate
-  // tracks estimation_manager/uav_state (high-rate estimator output).
   msg.hw_api_rate           = static_cast<float>(rate_hw_api_odometry_.rate());
   msg.control_manager_rate  = static_cast<float>(rate_control_manager_diag_.rate());
   msg.state_estimation_rate = static_cast<float>(rate_estimator_uav_state_.rate());

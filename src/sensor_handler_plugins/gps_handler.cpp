@@ -29,11 +29,18 @@ std::vector<diagnostic_msgs::msg::KeyValue> GPSHandler::fill_details() {
     info.key   = "uncertainty";
     info.value = "nan";
     details.push_back(info);
+    info.key   = "quality";
+    info.value = "nan";
+    details.push_back(info);
   } else {
     diagnostic_msgs::msg::KeyValue info;
     info.key                  = "uncertainty";
     const Eigen::Matrix3d cov = cov2eigen(gnss_msg->position_covariance);
     info.value                = std::to_string(std::cbrt(cov.determinant()));
+    details.push_back(info);
+    info.key   = "quality";
+    double gnss_qual = (gnss_msg->position_covariance[0] + gnss_msg->position_covariance[4] + gnss_msg->position_covariance[8]) / 3;
+    info.value = std::to_string(gnss_qual);
     details.push_back(info);
   }
 
@@ -45,6 +52,9 @@ std::vector<diagnostic_msgs::msg::KeyValue> GPSHandler::fill_details() {
     info.key   = "num_satellites";
     info.value = "nan";
     details.push_back(info);
+    info.key   = "position_accuracy";
+    info.value = "nan";
+    details.push_back(info);
   } else {
     diagnostic_msgs::msg::KeyValue info;
     info.key   = "fix_type";
@@ -53,6 +63,10 @@ std::vector<diagnostic_msgs::msg::KeyValue> GPSHandler::fill_details() {
     info.key   = "num_satellites";
     info.value = std::to_string(gnss_status_msg->satellites_visible);
     details.push_back(info);
+    // Position accuracy
+    info.key                 = "position_accuracy";
+    double position_accuracy = (gnss_status_msg->h_acc + gnss_status_msg->v_acc) / 2.0;
+    info.value               = std::to_string(position_accuracy);
   }
 
   return details;

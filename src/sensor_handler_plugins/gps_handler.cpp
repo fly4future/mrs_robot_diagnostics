@@ -67,6 +67,7 @@ std::vector<diagnostic_msgs::msg::KeyValue> GPSHandler::fill_details() {
     info.key                 = "position_accuracy";
     double position_accuracy = (gnss_status_msg->h_acc + gnss_status_msg->v_acc) / 2.0;
     info.value               = std::to_string(position_accuracy);
+    details.push_back(info);
   }
 
   return details;

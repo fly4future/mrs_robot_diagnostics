@@ -231,16 +231,25 @@ private:
   // | ----------------------- Timers --------------------------- |
 
   std::shared_ptr<TimerType> timer_main_;
-  /** @brief Main diagnostics loop: reads all subscribers, updates state, publishes all diagnostics messages. */
+  /**
+   * @brief Main diagnostics loop. 
+   * Polls all subscribers and publishes diagnostics. Each *_info
+   * topic is (re)published only when fresh input arrived since the last tick —
+   * polling the latest message.
+   */
   void timerMain();
+
+  std::shared_ptr<TimerType> timer_uav_state_;
+  /**
+   * @brief Fast UAV-state path: recomputes the state machine from hw_api/status
+   * (100 Hz) + control_manager diagnostics and publishes uav_state the moment the
+   * state changes.
+   */
+  void timerUavState();
 
   std::shared_ptr<TimerType> timer_error_publishing_;
   /** @brief Publishes root error graph elements for upstream monitoring. */
   void timerErrorPublishing();
-
-  std::shared_ptr<TimerType> timer_uav_state_;
-  /** @brief Fast UAV state update loop (publishes only on state change). */
-  void timerUavState();
 
   std::shared_ptr<TimerType> timer_update_sensor_status_;
   /** @brief Polls all sensor handler plugins and updates available_sensors_. */

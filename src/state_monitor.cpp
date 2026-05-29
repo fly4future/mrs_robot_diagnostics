@@ -93,8 +93,8 @@ void StateMonitor::initialize() {
   param_loader.loadParam("robot_diagnostics/wifi_interface", wifi_interface, std::string(""));
 
   auto       main_timer_rate      = param_loader.loadParam2<double>("robot_diagnostics/main_timer_rate");
-  auto       error_publisher_rate = param_loader.loadParam2<double>("robot_diagnostics/error_publisher_rate");
   const auto state_timer_rate     = param_loader.loadParam2<double>("robot_diagnostics/state_timer_rate");
+  auto       error_publisher_rate = param_loader.loadParam2<double>("robot_diagnostics/error_publisher_rate");
   const auto host_info_rate       = param_loader.loadParam2<double>("robot_diagnostics/host_info_rate");
   not_reporting_delay_            = param_loader.loadParam2<rclcpp::Duration>("robot_diagnostics/not_reporting_delay");
 
@@ -242,6 +242,12 @@ void StateMonitor::initialize() {
   }
 
   {
+    std::function<void()> callback_fcn = std::bind(&StateMonitor::timerUavState, this);
+
+    timer_uav_state_ = std::make_shared<TimerType>(timer_opts_start, rclcpp::Rate(state_timer_rate, clock_), callback_fcn);
+  }
+
+  {
     std::function<void()> callback_fcn = std::bind(&StateMonitor::timerErrorPublishing, this);
 
     timer_error_publishing_ = std::make_shared<TimerType>(timer_opts_start, rclcpp::Rate(error_publisher_rate, clock_), callback_fcn);
@@ -251,12 +257,6 @@ void StateMonitor::initialize() {
     std::function<void()> callback_fcn = std::bind(&StateMonitor::timerUpdateSensorStatus, this);
 
     timer_update_sensor_status_ = std::make_shared<TimerType>(timer_opts_start, rclcpp::Rate(update_status_rate, clock_), callback_fcn);
-  }
-
-  {
-    std::function<void()> callback_fcn = std::bind(&StateMonitor::timerUavState, this);
-
-    timer_uav_state_ = std::make_shared<TimerType>(timer_opts_start, rclcpp::Rate(state_timer_rate, clock_), callback_fcn);
   }
 
   {
@@ -307,39 +307,41 @@ void StateMonitor::timerMain() {
     flight_timer_->tick(null_tracker);
   }
 
-  if (hw_api_status.hasNewMessage || control_manager_diagnostics.hasNewMessage) {
-    const auto new_state = parse_uav_state(hw_api_status.message, control_manager_diagnostics.message);
-    uav_state_.set(new_state);
-  }
+  // | ------------- per-topic coalesced publishing ------------- |
+  // Republish a topic only when fresh input arrived since the last tick.
 
-  last_general_robot_info_ = parse_general_robot_info(battery_state.message);
-
-  if (estimation_diagnostics.hasNewMessage || control_manager_heading.hasNewMessage || hw_api_gnss.hasNewMessage || hw_api_mag_heading.hasNewMessage)
+  if (estimation_diagnostics.hasNewMessage || control_manager_heading.hasNewMessage || hw_api_gnss.hasNewMessage || hw_api_mag_heading.hasNewMessage) {
     last_state_estimation_info_ =
         parse_state_estimation_info(estimation_diagnostics.message, control_manager_heading.message, hw_api_gnss.message, hw_api_mag_heading.message);
+    ph_state_estimation_info_.publish(last_state_estimation_info_);
+  }
 
   if (control_manager_diagnostics.hasNewMessage || control_manager_thrust.hasNewMessage || constraint_manager_diagnostics.hasNewMessage ||
-      gain_manager_diagnostics.hasNewMessage || tracker_cmd.hasNewMessage)
+      gain_manager_diagnostics.hasNewMessage || tracker_cmd.hasNewMessage) {
     last_control_info_ = parse_control_info(control_manager_diagnostics.message, constraint_manager_diagnostics.message, gain_manager_diagnostics.message,
                                             control_manager_thrust.message, tracker_cmd.message);
+    ph_control_info_.publish(last_control_info_);
+  }
 
-  if (mpc_tracker_diagnostics.hasNewMessage)
+  if (mpc_tracker_diagnostics.hasNewMessage) {
     last_collision_avoidance_info_ = parse_collision_avoidance_info(mpc_tracker_diagnostics.message, control_manager_diagnostics.message);
+    ph_collision_avoidance_info_.publish(last_collision_avoidance_info_);
+  }
 
-  if (hw_api_status.hasNewMessage || mass_nominal.hasNewMessage || mass_estimate.hasNewMessage)
+  if (hw_api_status.hasNewMessage || mass_nominal.hasNewMessage || mass_estimate.hasNewMessage) {
     last_uav_info_ = parse_uav_info(hw_api_status.message, mass_nominal.message, mass_estimate.message);
+    ph_uav_info_.publish(last_uav_info_);
+  }
 
-  // SystemHealthInfo is always rebuilt — host stats + sensor handlers update independently
-  // of any single subscriber, and we want to share them on every tick.
-  last_system_health_info_ = parse_system_health_info();
-
+  // | --------------- heartbeat topics (every tick) -------------- |
+  // These carry data that changes without a triggering message
+  last_general_robot_info_ = parse_general_robot_info(battery_state.message);
   ph_general_robot_info_.publish(last_general_robot_info_);
-  ph_state_estimation_info_.publish(last_state_estimation_info_);
-  ph_control_info_.publish(last_control_info_);
-  ph_collision_avoidance_info_.publish(last_collision_avoidance_info_);
-  ph_uav_info_.publish(last_uav_info_);
+
+  last_system_health_info_ = parse_system_health_info();
   ph_system_health_info_.publish(last_system_health_info_);
 
+  // transitions are published immediately by timerUavState
   mrs_msgs::msg::State uav_state_msg;
   uav_state_msg.stamp = now;
   uav_state_msg.state = to_ros(uav_state_.value());
@@ -349,6 +351,27 @@ void StateMonitor::timerMain() {
   // to avoid getting timeout warnings on this latched message
   if (sh_mass_nominal_.hasMsg())
     sh_mass_nominal_.setNoMessageTimeout(mrs_lib::no_timeout);
+}
+
+void StateMonitor::timerUavState() {
+  if (!is_initialized_) {
+    return;
+  }
+  std::scoped_lock lck(uav_state_mutex_);
+
+  // Non-consuming peeks: this fast path must not steal the newMsg() flags that
+  // timerMain relies on to (re)publish uav_info from the same hw_api/status.
+  const auto new_state = parse_uav_state(sh_hw_api_status_.peekMsg(), sh_control_manager_diagnostics_.peekMsg());
+
+  if (new_state == uav_state_.value())
+    return;
+
+  uav_state_.set(new_state);
+
+  mrs_msgs::msg::State uav_state_msg;
+  uav_state_msg.stamp = clock_->now();
+  uav_state_msg.state = to_ros(uav_state_.value());
+  ph_uav_state_.publish(uav_state_msg);
 }
 
 void StateMonitor::timerErrorPublishing() {
@@ -368,31 +391,6 @@ void StateMonitor::timerErrorPublishing() {
   }
 
   ph_root_errors_.publish(root_errors_msg);
-}
-
-void StateMonitor::timerUavState() {
-  if (!is_initialized_) {
-    return;
-  }
-  std::scoped_lock lck(uav_state_mutex_);
-  const auto       now                         = clock_->now();
-  const auto       hw_api_status               = processIncomingMessage(sh_hw_api_status_);
-  const auto       control_manager_diagnostics = processIncomingMessage(sh_control_manager_diagnostics_);
-
-  if (!hw_api_status.hasNewMessage && !control_manager_diagnostics.hasNewMessage)
-    return;
-
-  const auto new_state = parse_uav_state(hw_api_status.message, control_manager_diagnostics.message);
-
-  if (new_state == uav_state_.value())
-    return;
-
-  uav_state_.set(new_state);
-
-  mrs_msgs::msg::State uav_state_msg;
-  uav_state_msg.stamp = now;
-  uav_state_msg.state = to_ros(uav_state_.value());
-  ph_uav_state_.publish(uav_state_msg);
 }
 
 void StateMonitor::timerUpdateSensorStatus() {
@@ -722,10 +720,11 @@ mrs_msgs::msg::ControlInfo StateMonitor::parse_control_info(mrs_msgs::msg::Contr
 }
 
 mrs_msgs::msg::CollisionAvoidanceInfo
-StateMonitor::parse_collision_avoidance_info(mrs_msgs::msg::MpcTrackerDiagnostics::ConstSharedPtr mpc_tracker_diagnostics, mrs_msgs::msg::ControlManagerDiagnostics::ConstSharedPtr control_manager_diagnostics) { 
+StateMonitor::parse_collision_avoidance_info(mrs_msgs::msg::MpcTrackerDiagnostics::ConstSharedPtr     mpc_tracker_diagnostics,
+                                             mrs_msgs::msg::ControlManagerDiagnostics::ConstSharedPtr control_manager_diagnostics) {
   mrs_msgs::msg::CollisionAvoidanceInfo msg;
 
-  const bool is_mpc_tracker_diagnostics_valid = mpc_tracker_diagnostics != nullptr;
+  const bool is_mpc_tracker_diagnostics_valid     = mpc_tracker_diagnostics != nullptr;
   const bool is_control_manager_diagnostics_valid = control_manager_diagnostics != nullptr;
 
   if (is_mpc_tracker_diagnostics_valid && is_control_manager_diagnostics_valid) {

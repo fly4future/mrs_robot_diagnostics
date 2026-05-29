@@ -1,7 +1,7 @@
 robot_diagnostics:
-  main_timer_rate: 100.0 # [Hz]
-  error_publisher_rate: 2.0 # [Hz]
+  main_timer_rate: 10.0 # [Hz]
   state_timer_rate: 100.0 # [Hz]
+  error_publisher_rate: 2.0 # [Hz]
   host_info_rate: 1.0 # [Hz]
   not_reporting_delay: 3.0 # [s]
 

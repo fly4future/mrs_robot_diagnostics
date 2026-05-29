@@ -28,6 +28,11 @@ void WhDrainedIntegrator::integrate(double voltage, double current) {
   const double dt_seconds = (now - last_sample_).seconds();
   last_sample_            = now;
 
+  // Ignore non-positive time deltas
+  if (dt_seconds <= 0.0) {
+    return;
+  }
+
   // V * I * (dt / 3600) gives watt-hours
   wh_drained_ += voltage * current * (dt_seconds / 3600.0);
   persistToDisk();

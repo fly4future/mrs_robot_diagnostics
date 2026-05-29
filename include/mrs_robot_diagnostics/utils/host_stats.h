@@ -19,10 +19,11 @@ namespace mrs_robot_diagnostics::utils
  * per-PID CPU loads. Maintains incremental state for CPU-tick diffs between
  * successive update() calls.
  *
- * Currently per-PID node tracking is a stub (ROS2 node-list introspection
- * was disabled in the source data_acquisition.cpp); update() simply leaves
- * node_cpu_loads() empty. Reserved for future reimplementation.
+ * * Per-PID CPU loads are approximated by attributing each ROS2-linked PID
+  * (detected via `librclcpp.so` in /proc/<pid>/maps) a top-style CPU % based on
+  * utime+stime deltas between successive update() calls.
  */
+
 class HostStats {
 public:
   /**

@@ -213,14 +213,15 @@ void HostStats::readCpuFreq() {
   }
 
   if (cpu_cores_ > 0) {
-    snap_.cpu_ghz = (static_cast<float>(cpu_freq_khz) / static_cast<float>(cpu_cores_)) / 1048576.0f;
+    // scaling_cur_freq is reported in kHz (decimal). 1 GHz = 1,000,000 kHz.
+    snap_.cpu_ghz = (static_cast<float>(cpu_freq_khz) / static_cast<float>(cpu_cores_)) / 1000000.0f;
   }
 }
 
 void HostStats::readMemLoad() {
   std::ifstream file("/proc/meminfo");
-  std::string   line1, line2, line3, line4;
-  if (!(std::getline(file, line1) && std::getline(file, line2) && std::getline(file, line3) && std::getline(file, line4))) {
+  std::string   line1, line2, line3;
+  if (!(std::getline(file, line1) && std::getline(file, line2) && std::getline(file, line3))) {
     return;
   }
 
@@ -240,11 +241,13 @@ void HostStats::readMemLoad() {
   };
 
   const double total_ram = parse_kib(line1); // MemTotal
-  const double free_ram  = parse_kib(line3); // MemAvailable (typically line 3 in modern kernels) — historical: MemFree
-  const double buffers   = parse_kib(line4); // Buffers
+  // MemAvailable (line 3 on kernels >= 3.14) already folds in reclaimable page
+  // cache and buffers, so it is the usable-memory figure on its own — do not add
+  // Buffers on top or it double-counts.
+  const double free_ram = parse_kib(line3);
 
   snap_.total_ram = static_cast<float>(total_ram);
-  snap_.free_ram  = static_cast<float>(free_ram + buffers);
+  snap_.free_ram  = static_cast<float>(free_ram);
 }
 
 void HostStats::readDiskSpace() {
@@ -343,7 +346,7 @@ void HostStats::readNodeCpuLoads() {
 void HostStats::readWifi() {
   // Reset to "unavailable" sentinels; only populate on a successful read.
   snap_.wifi_interface.clear();
-  snap_.wifi_signal_dbm   = -200.0f;
+  snap_.wifi_signal_dbm   = std::numeric_limits<float>::quiet_NaN(); 
   snap_.wifi_link_quality = -1;
 
   std::ifstream file("/proc/net/wireless");

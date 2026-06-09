@@ -83,9 +83,12 @@ public:
 private:
   void readCpuLoad();
   void readCpuTemperature();
+  void readCpuCoreCount();
   void readCpuFreq();
   void readMemLoad();
   void readDiskSpace();
+  void discoverRosPids(std::chrono::steady_clock::time_point now);
+  void sampleNodeCpuLoads(std::chrono::steady_clock::time_point now);
   void readNodeCpuLoads();
   void readWifi();
 
@@ -102,8 +105,8 @@ private:
 
   // Per-PID CPU diff state carried across readNodeCpuLoads() invocations.
   // Expensive node CPU sampling runs on a slower cadence than update():
-  // - PID discovery scans /proc occasionally
-  // - known ROS PIDs are sampled at ~1 Hz
+  // - PID discovery scans /proc at pid_discovery_period_ intervals
+  // - known ROS PIDs are sampled at node_cpu_sample_period_ intervals
   // proc_last_ticks_ stores last-seen utime+stime for each tracked PID.
   std::unordered_map<int, long>         proc_last_ticks_;
   std::unordered_set<int>               ros_pids_;

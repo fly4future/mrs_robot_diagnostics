@@ -130,7 +130,7 @@ mrs_msgs::msg::SensorStatus SensorHandler::updateStatus() {
     return ss;
   }
 
-  // Rate comparison
+  // Rate comparison — rate_tracker_ is internally synchronised; no external lock needed
   const double measured_rate = rate_tracker_.rate();
   ss.rate                    = measured_rate;
 

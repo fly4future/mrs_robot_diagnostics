@@ -35,7 +35,6 @@ protected:
   // timestamp, error counts, etc.)
   virtual std::vector<diagnostic_msgs::msg::KeyValue> fill_details();
 
-  // std::string name_;
   std::string topic_;
   uint8_t     sensor_type_uint_ = 0;
   bool        is_initialized_   = false;

@@ -24,7 +24,7 @@ SENSOR_TYPE_MAP = {
     0: "UNKNOWN",
     1: "AUTOPILOT",
     2: "RANGEFINDER",
-    3: "GPS",
+    3: "GNSS",
     4: "IMU",
     5: "BAROMETER",
     6: "MAGNETOMETER",

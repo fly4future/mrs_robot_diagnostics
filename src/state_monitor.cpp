@@ -213,8 +213,9 @@ void StateMonitor::initialize() {
   host_stats_->setWifiInterface(wifi_interface);
   {
     // Derive sample period from host_info_rate; discovery period from the loaded param.
-    const auto sample_ms    = std::chrono::milliseconds(static_cast<long>(1000.0 / host_info_rate));
-    const auto discovery_ms = std::chrono::milliseconds(static_cast<long>(node_cpu_discovery_period_s * 1000.0));
+    const double safe_host_info_rate = (host_info_rate > 0.0) ? host_info_rate : 1.0;
+    const auto   sample_ms           = std::chrono::milliseconds(static_cast<long>(1000.0 / safe_host_info_rate));
+    const auto   discovery_ms        = std::chrono::milliseconds(static_cast<long>(node_cpu_discovery_period_s * 1000.0));
     host_stats_->setNodeCpuPeriods(sample_ms, discovery_ms);
   }
   flight_timer_          = std::make_unique<utils::FlightTimer>(clock_);

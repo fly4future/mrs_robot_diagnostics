@@ -1,5 +1,5 @@
 #pragma once
-#include <deque>
+#include <atomic>
 #include <diagnostic_msgs/msg/key_value.hpp>
 #include <mrs_lib/errorgraph/error_publisher.h>
 #include <mrs_lib/param_loader.h>
@@ -8,6 +8,7 @@
 #include <mrs_msgs/msg/sensor_status.hpp>
 #include <mutex>
 #include <rclcpp/rclcpp.hpp>
+#include <mrs_robot_diagnostics/utils/rate_tracker.hpp>
 
 namespace mrs_robot_diagnostics
 {
@@ -44,14 +45,15 @@ protected:
   std::string expected_publisher_component_;
   double   expected_rate_  = 0.0;
   double   rate_tolerance_ = 0.3;
-  double   measured_rate_  = -1.0;
-  uint64_t msg_count_      = 0;
 
-  // Sliding window for rate calculation
-  static constexpr size_t  RATE_WINDOW_SIZE = 10;
-  std::deque<rclcpp::Time> msg_timestamps_;
-  std::mutex               mutex_timestamps_;
-  rclcpp::Time             last_msg_wall_time_;
+  std::atomic<uint64_t> msg_count_{0};
+
+  // Sliding-window rate tracker (internally synchronised)
+  utils::RateTracker rate_tracker_;
+
+  // Last message wall time (protected by mutex_last_msg_)
+  std::mutex   mutex_last_msg_;
+  rclcpp::Time last_msg_wall_time_;
 
   // Grace period before reporting rate errors
   static constexpr double GRACE_PERIOD_S = 5.0;
@@ -64,7 +66,6 @@ protected:
   std::shared_ptr<mrs_lib::errorgraph::ErrorPublisher> error_publisher_;
 
   // | -------------------- support functions ------------------- |
-  double          calculateRate(std::deque<rclcpp::Time> &timestamps);
   uint8_t         mapSensorType(const std::string &type_str);
   Eigen::Matrix3d cov2eigen(const std::array<double, 9> &msg_cov);
 

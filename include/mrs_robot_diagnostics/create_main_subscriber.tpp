@@ -18,20 +18,11 @@ mrs_lib::SubscriberHandler<MessageType> SensorHandler::create_main_subscriber(rc
 
   auto callback = [this]([[maybe_unused]] const typename MessageType::ConstPtr &msg) {
     rclcpp::Time now = rclcpp::Clock(RCL_STEADY_TIME).now();
+    rate_tracker_.record(now);
+    msg_count_.fetch_add(1, std::memory_order_relaxed);
     {
-      std::scoped_lock lock(mutex_timestamps_);
-
-      msg_timestamps_.push_back(now);
-      if (msg_timestamps_.size() > RATE_WINDOW_SIZE) {
-        msg_timestamps_.pop_front();
-      }
-
-      msg_count_++;
+      std::scoped_lock lock(mutex_last_msg_);
       last_msg_wall_time_ = now;
-
-      std::deque<rclcpp::Time> timestamps_copy = msg_timestamps_;
-
-      measured_rate_ = calculateRate(timestamps_copy);
     }
   };
 

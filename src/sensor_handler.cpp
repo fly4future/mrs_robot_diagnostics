@@ -55,6 +55,8 @@ bool SensorHandler::initialize(rclcpp::Node::SharedPtr &node, const std::string 
   // Initialize timing
   init_time_          = rclcpp::Clock(RCL_STEADY_TIME).now();
   last_msg_wall_time_ = rclcpp::Time(0, 0, RCL_STEADY_TIME);
+  msg_count_.store(0, std::memory_order_relaxed);
+  rate_tracker_.clear();
 
 
   const bool initialized = onInitialize(node, config_key, name_space, cbkgrp_subs);
@@ -78,15 +80,13 @@ mrs_msgs::msg::SensorStatus SensorHandler::updateStatus() {
     return ss;
   }
 
-  std::scoped_lock lock(mutex_timestamps_);
-
   rclcpp::Time now                = rclcpp::Clock(RCL_STEADY_TIME).now();
   double       elapsed_since_init = (now - init_time_).seconds();
 
   // Grace period — don't report rate errors right after startup
   if (elapsed_since_init < GRACE_PERIOD_S) {
     ss.ready   = false;
-    ss.rate    = measured_rate_;
+    ss.rate    = rate_tracker_.rate();
     ss.message = "Initializing (grace period)";
     ss.level   = mrs_msgs::msg::SensorStatus::STALE;
     ss.details = fill_details();
@@ -94,21 +94,26 @@ mrs_msgs::msg::SensorStatus SensorHandler::updateStatus() {
   }
 
   // No messages ever received
-  if (msg_count_ == 0) {
+  if (msg_count_.load(std::memory_order_relaxed) == 0) {
     ss.ready   = false;
     ss.rate    = 0.0;
-    ss.message = "No messages received for " + std::to_string(elapsed_since_init) + " seconds since startup"; 
+    ss.message = "No messages received for " + std::to_string(elapsed_since_init) + " seconds since startup";
     ss.level   = mrs_msgs::msg::SensorStatus::ERROR;
     mrs_lib::errorgraph::node_id_t source_node;
-    source_node.node = expected_publisher_node_;
+    source_node.node      = expected_publisher_node_;
     source_node.component = expected_publisher_component_;
-    error_publisher_->addWaitingForTopicError(topic_, source_node); 
+    error_publisher_->addWaitingForTopicError(topic_, source_node);
     ss.details = fill_details();
     return ss;
   }
 
   // Topic gone silent — no message for 3x the expected period
-  double time_since_last = (now - last_msg_wall_time_).seconds();
+  rclcpp::Time last_msg;
+  {
+    std::scoped_lock lock(mutex_last_msg_);
+    last_msg = last_msg_wall_time_;
+  }
+  double time_since_last = (now - last_msg).seconds();
   double expected_period = 1.0 / expected_rate_;
 
   if (time_since_last > expected_period * 3.0) {
@@ -117,7 +122,7 @@ mrs_msgs::msg::SensorStatus SensorHandler::updateStatus() {
     ss.message = "No messages received for " + std::to_string(time_since_last) + " seconds";
     ss.level   = mrs_msgs::msg::SensorStatus::ERROR;
     mrs_lib::errorgraph::node_id_t source_node;
-    source_node.node = expected_publisher_node_;
+    source_node.node      = expected_publisher_node_;
     source_node.component = expected_publisher_component_;
     error_publisher_->addWaitingForTopicError(topic_, source_node);
 
@@ -126,19 +131,20 @@ mrs_msgs::msg::SensorStatus SensorHandler::updateStatus() {
   }
 
   // Rate comparison
-  ss.rate = measured_rate_;
+  const double measured_rate = rate_tracker_.rate();
+  ss.rate                    = measured_rate;
 
   double lower_bound = expected_rate_ * (1.0 - rate_tolerance_);
   double upper_bound = expected_rate_ * (1.0 + rate_tolerance_);
 
-  if (measured_rate_ >= lower_bound && measured_rate_ <= upper_bound) {
+  if (measured_rate >= lower_bound && measured_rate <= upper_bound) {
     ss.ready   = true;
     ss.level   = mrs_msgs::msg::SensorStatus::OK;
     ss.message = "Rate within expected range";
-  } else if (measured_rate_ < lower_bound) {
+  } else if (measured_rate < lower_bound) {
     ss.ready   = false;
     ss.level   = mrs_msgs::msg::SensorStatus::WARN;
-    ss.message = "Rate too low: expected " + std::to_string(expected_rate_) + " Hz, got " + std::to_string(measured_rate_) + " Hz";
+    ss.message = "Rate too low: expected " + std::to_string(expected_rate_) + " Hz, got " + std::to_string(measured_rate) + " Hz";
   } else {
     ss.ready   = true;
     ss.level   = mrs_msgs::msg::SensorStatus::WARN;
@@ -160,19 +166,6 @@ std::vector<diagnostic_msgs::msg::KeyValue> SensorHandler::fill_details() {
 }
 
 // | -------------------- support functions ------------------- |
-
-double SensorHandler::calculateRate(std::deque<rclcpp::Time> &timestamps) {
-  if (timestamps.size() < 2) {
-    return -1.0;
-  }
-
-  double dt = (timestamps.back() - timestamps.front()).seconds();
-  if (dt <= 0.0) {
-    return -1.0;
-  }
-
-  return static_cast<double>(timestamps.size() - 1) / dt;
-}
 
 uint8_t SensorHandler::mapSensorType(const std::string &type_str) {
   static const std::unordered_map<std::string, uint8_t> type_map = {

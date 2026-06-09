@@ -43,20 +43,13 @@ bool GenericSensorHandler::onInitialize(rclcpp::Node::SharedPtr &node, const std
 }
 
 void GenericSensorHandler::messageCallback([[maybe_unused]] const std::shared_ptr<const rclcpp::SerializedMessage> &msg) {
-  std::scoped_lock lock(mutex_timestamps_);
-
   rclcpp::Time now = rclcpp::Clock(RCL_STEADY_TIME).now();
-
-  msg_timestamps_.push_back(now);
-  if (msg_timestamps_.size() > RATE_WINDOW_SIZE) {
-    msg_timestamps_.pop_front();
+  rate_tracker_.record(now);
+  msg_count_.fetch_add(1, std::memory_order_relaxed);
+  {
+    std::scoped_lock lock(mutex_last_msg_);
+    last_msg_wall_time_ = now;
   }
-
-  msg_count_++;
-  last_msg_wall_time_ = now;
-
-  std::deque<rclcpp::Time> timestamps_copy = msg_timestamps_;
-  measured_rate_                           = calculateRate(timestamps_copy);
 }
 
 } // namespace generic_handler

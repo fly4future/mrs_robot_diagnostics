@@ -32,7 +32,7 @@ std::vector<diagnostic_msgs::msg::KeyValue> MagnetometerSensorHandler::fill_deta
     info.value = "nan";
     details.push_back(info);
     info.key   = "norm_hz";
-    info.value = std::to_string(measured_rate_);
+    info.value = std::to_string(rate_tracker_.rate());
     details.push_back(info);
   } else {
     diagnostic_msgs::msg::KeyValue info;
@@ -54,7 +54,7 @@ std::vector<diagnostic_msgs::msg::KeyValue> MagnetometerSensorHandler::fill_deta
     details.push_back(info);
 
     info.key   = "norm_hz";
-    info.value = std::to_string(measured_rate_);
+    info.value = std::to_string(rate_tracker_.rate());
     details.push_back(info);
   }
 

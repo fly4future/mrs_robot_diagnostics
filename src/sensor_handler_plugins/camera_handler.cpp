@@ -84,7 +84,7 @@ mrs_msgs::msg::SensorStatus CameraSensorHandler::updateStatus() {
   nlohmann::json                       camera_info_json;
   if (sh_camera_info_.hasMsg()) {
 
-    ss_msg.rate  = measured_rate_;
+    ss_msg.rate  = rate_tracker_.rate();
     ss_msg.ready = true;
 
     auto         msg    = sh_camera_info_.getMsg();

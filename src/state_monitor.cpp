@@ -85,15 +85,11 @@ void StateMonitor::initialize() {
   std::string wifi_interface;
   param_loader.loadParam("robot_diagnostics/wifi_interface", wifi_interface, std::string(""));
 
-  auto       main_timer_rate      = param_loader.loadParam2<double>("robot_diagnostics/main_timer_rate");
-  const auto state_timer_rate     = param_loader.loadParam2<double>("robot_diagnostics/state_timer_rate");
-  auto       error_publisher_rate = param_loader.loadParam2<double>("robot_diagnostics/error_publisher_rate");
-  const auto host_info_rate       = param_loader.loadParam2<double>("robot_diagnostics/host_info_rate");
-
-  // Default discovery period = 5 × the host-info period (i.e. 5 s at 1 Hz).
-  const double default_discovery_s = (host_info_rate > 0.0) ? (5.0 / host_info_rate) : 5.0;
-  double       node_cpu_discovery_period_s;
-  param_loader.loadParam("robot_diagnostics/node_cpu_discovery_period", node_cpu_discovery_period_s, default_discovery_s);
+  auto       main_timer_rate             = param_loader.loadParam2<double>("robot_diagnostics/main_timer_rate");
+  const auto state_timer_rate            = param_loader.loadParam2<double>("robot_diagnostics/state_timer_rate");
+  auto       error_publisher_rate        = param_loader.loadParam2<double>("robot_diagnostics/error_publisher_rate");
+  const auto host_info_rate              = param_loader.loadParam2<double>("robot_diagnostics/host_info_rate");
+  const auto node_cpu_discovery_period_s = param_loader.loadParam2<double>("robot_diagnostics/node_cpu_discovery_period");
 
   not_reporting_delay_ = param_loader.loadParam2<rclcpp::Duration>("robot_diagnostics/not_reporting_delay");
 

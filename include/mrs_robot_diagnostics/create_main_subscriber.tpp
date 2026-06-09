@@ -17,21 +17,12 @@ mrs_lib::SubscriberHandler<MessageType> SensorHandler::create_main_subscriber(rc
   shopts_.qos                                 = qos_profile_;
 
   auto callback = [this]([[maybe_unused]] const typename MessageType::ConstPtr &msg) {
-    rclcpp::Time now = rclcpp::Clock(RCL_STEADY_TIME).now();
+    const rclcpp::Time now = rclcpp::Clock(RCL_STEADY_TIME).now();
+    rate_tracker_.record(now);
     {
-      std::scoped_lock lock(mutex_timestamps_);
-
-      msg_timestamps_.push_back(now);
-      if (msg_timestamps_.size() > RATE_WINDOW_SIZE) {
-        msg_timestamps_.pop_front();
-      }
-
-      msg_count_++;
-      last_msg_wall_time_ = now;
-
-      std::deque<rclcpp::Time> timestamps_copy = msg_timestamps_;
-
-      measured_rate_ = calculateRate(timestamps_copy);
+      std::scoped_lock lock(mutex_state_);
+      state_.msg_count++;
+      state_.last_msg_wall_time = now;
     }
   };
 

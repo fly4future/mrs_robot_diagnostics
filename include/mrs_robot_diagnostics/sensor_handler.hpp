@@ -1,5 +1,4 @@
 #pragma once
-#include <deque>
 #include <diagnostic_msgs/msg/key_value.hpp>
 #include <mrs_lib/errorgraph/error_publisher.h>
 #include <mrs_lib/param_loader.h>
@@ -8,6 +7,8 @@
 #include <mrs_msgs/msg/sensor_status.hpp>
 #include <mutex>
 #include <rclcpp/rclcpp.hpp>
+
+#include <mrs_robot_diagnostics/utils/rate_tracker.hpp>
 
 namespace mrs_robot_diagnostics
 {
@@ -34,7 +35,6 @@ protected:
   // timestamp, error counts, etc.)
   virtual std::vector<diagnostic_msgs::msg::KeyValue> fill_details();
 
-  // std::string name_;
   std::string topic_;
   uint8_t     sensor_type_uint_ = 0;
   bool        is_initialized_   = false;
@@ -42,20 +42,24 @@ protected:
   // Rate monitoring
   std::string expected_publisher_node_;
   std::string expected_publisher_component_;
-  double   expected_rate_  = 0.0;
-  double   rate_tolerance_ = 0.3;
-  double   measured_rate_  = -1.0;
-  uint64_t msg_count_      = 0;
-
-  // Sliding window for rate calculation
-  static constexpr size_t  RATE_WINDOW_SIZE = 10;
-  std::deque<rclcpp::Time> msg_timestamps_;
-  std::mutex               mutex_timestamps_;
-  rclcpp::Time             last_msg_wall_time_;
+  double expected_rate_  = 0.0;
+  double rate_tolerance_ = 0.3;
 
   // Grace period before reporting rate errors
   static constexpr double GRACE_PERIOD_S = 5.0;
   rclcpp::Time            init_time_;
+
+  // Runtime state updated from subscriber callbacks
+  struct RuntimeState
+  {
+    rclcpp::Time last_msg_wall_time{0, 0, RCL_STEADY_TIME};
+    uint64_t     msg_count{0};
+  };
+  mutable std::mutex mutex_state_;
+  RuntimeState       state_;
+
+  // Sliding-window rate tracker (internally synchronised)
+  utils::RateTracker rate_tracker_;
 
   mrs_lib::SubscriberHandlerOptions shopts_;
   rclcpp::QoS                       qos_profile_{10};
@@ -63,8 +67,18 @@ protected:
   // Error publisher for reporting detailed errors (optional, can be used by derived classes)
   std::shared_ptr<mrs_lib::errorgraph::ErrorPublisher> error_publisher_;
 
+  // | -------------------- sensor-health helpers ------------------- |
+
+  /** @brief Current measured rate from the sliding-window tracker. */
+  double getMeasuredRate() const;
+
+  /** @brief True while the node is still within the startup grace period. */
+  bool isInGracePeriod(const rclcpp::Time &now) const;
+
+  /** @brief True if @p last_msg is recent enough (within 3× the expected period). */
+  bool isTopicFresh(const rclcpp::Time &now, const rclcpp::Time &last_msg) const;
+
   // | -------------------- support functions ------------------- |
-  double          calculateRate(std::deque<rclcpp::Time> &timestamps);
   uint8_t         mapSensorType(const std::string &type_str);
   Eigen::Matrix3d cov2eigen(const std::array<double, 9> &msg_cov);
 

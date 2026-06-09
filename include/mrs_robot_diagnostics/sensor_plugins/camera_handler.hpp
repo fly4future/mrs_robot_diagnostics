@@ -6,17 +6,12 @@
 #include <mrs_robot_diagnostics/sensor_handler.hpp>
 
 #include <sensor_msgs/msg/camera_info.hpp>
-#include <sensor_msgs/msg/image.hpp>
 #include <std_msgs/msg/float32_multi_array.hpp>
 
 #include <mrs_msgs/msg/sensor_info.hpp>
 
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/buffer.h>
-#include <tf2/LinearMath/Matrix3x3.h>
-#include <tf2/LinearMath/Quaternion.h>
-
-#include <nlohmann/json.hpp>
 
 
 namespace mrs_robot_diagnostics

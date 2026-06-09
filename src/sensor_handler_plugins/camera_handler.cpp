@@ -1,5 +1,16 @@
 #include <mrs_robot_diagnostics/sensor_plugins/camera_handler.hpp>
 
+#include <cmath>
+
+#include <geometry_msgs/msg/transform_stamped.hpp>
+
+#include <tf2/exceptions.h>
+#include <tf2/time.h>
+#include <tf2/LinearMath/Matrix3x3.h>
+#include <tf2/LinearMath/Quaternion.h>
+
+#include <nlohmann/json.hpp>
+
 namespace mrs_robot_diagnostics
 {
 

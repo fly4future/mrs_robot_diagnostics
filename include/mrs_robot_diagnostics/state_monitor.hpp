@@ -25,7 +25,6 @@
 #include <mrs_msgs/msg/errorgraph_element_array.hpp>
 #include <mrs_msgs/msg/estimation_diagnostics.hpp>
 #include <mrs_msgs/msg/float64_stamped.hpp>
-#include <mrs_msgs/msg/control_manager_diagnostics.hpp>
 #include <mrs_msgs/msg/constraint_manager_diagnostics.hpp>
 #include <mrs_msgs/msg/gain_manager_diagnostics.hpp>
 #include <mrs_msgs/msg/general_robot_info.hpp>

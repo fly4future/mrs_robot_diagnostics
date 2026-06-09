@@ -247,92 +247,152 @@ void HostStats::readDiskSpace() {
 }
 
 void HostStats::readNodeCpuLoads() {
-  snap_.node_cpu_loads.clear();
+  if (cpu_total_diff_ > 0) {
+    node_cpu_total_diff_accum_ += cpu_total_diff_;
+  }
 
-  // Need a valid system-wide tick denominator from the most recent readCpuLoad().
-  if (cpu_total_diff_ <= 0 || cpu_cores_ <= 0) {
+  const auto now             = std::chrono::steady_clock::now();
+  const bool should_discover = !node_cpu_initialized_ || (now - last_pid_discovery_tp_ >= pid_discovery_period_);
+  const bool should_sample   = !node_cpu_initialized_ || (now - last_node_cpu_sample_tp_ >= node_cpu_sample_period_);
+
+  if (should_discover) {
+    std::unordered_set<int> live_pids;
+    std::unordered_set<int> discovered_ros_pids;
+
+    std::error_code ec;
+    for (const auto &entry : std::filesystem::directory_iterator("/proc", ec)) {
+      if (ec) {
+        break;
+      }
+      const std::string name = entry.path().filename().string();
+      if (name.empty() || !std::all_of(name.begin(), name.end(), [](unsigned char c) { return std::isdigit(c); })) {
+        continue;
+      }
+
+      int pid;
+      try {
+        pid = std::stoi(name);
+      }
+      catch (const std::exception &) {
+        continue;
+      }
+      live_pids.insert(pid);
+
+      auto cache_it = pid_is_ros_.find(pid);
+      bool is_ros   = false;
+      if (cache_it != pid_is_ros_.end()) {
+        is_ros = cache_it->second;
+      } else {
+        is_ros = isRosProcess(pid);
+        pid_is_ros_.emplace(pid, is_ros);
+      }
+      if (!is_ros) {
+        continue;
+      }
+
+      discovered_ros_pids.insert(pid);
+      if (pid_name_cache_.find(pid) == pid_name_cache_.end()) {
+        pid_name_cache_.emplace(pid, readProcName(pid));
+      }
+    }
+
+    ros_pids_ = std::move(discovered_ros_pids);
+
+    for (auto it = pid_is_ros_.begin(); it != pid_is_ros_.end();) {
+      if (live_pids.find(it->first) == live_pids.end()) {
+        it = pid_is_ros_.erase(it);
+      } else {
+        ++it;
+      }
+    }
+    for (auto it = proc_last_ticks_.begin(); it != proc_last_ticks_.end();) {
+      if (live_pids.find(it->first) == live_pids.end()) {
+        it = proc_last_ticks_.erase(it);
+      } else {
+        ++it;
+      }
+    }
+    for (auto it = pid_name_cache_.begin(); it != pid_name_cache_.end();) {
+      if (live_pids.find(it->first) == live_pids.end()) {
+        it = pid_name_cache_.erase(it);
+      } else {
+        ++it;
+      }
+    }
+
+    last_pid_discovery_tp_ = now;
+  }
+
+  if (!should_sample) {
+    node_cpu_initialized_ = true;
     return;
   }
+
+  if (node_cpu_total_diff_accum_ <= 0 || cpu_cores_ <= 0) {
+    last_node_cpu_sample_tp_ = now;
+    node_cpu_initialized_    = true;
+    return;
+  }
+
+  std::unordered_map<int, long>       new_proc_ticks;
+  std::vector<mrs_msgs::msg::CpuLoad> loads;
+  std::vector<int>                    stale_ros_pids;
 
   // Composable-node note: nodes sharing a container share one PID, so per-PID load
   // aggregates them. The __node:= label in readProcName() falls back to comm for
   // multi-node containers — fine for operator-facing "which process is hot" views.
-
-  std::unordered_map<int, long> new_proc_ticks;
-  std::unordered_set<int>       live_pids;
-
-  std::error_code ec;
-  // Iterate over /proc to find all live PIDs. For each, if it's a ROS process, read utime+stime and compare against the last snapshot to compute a load %.
-  for (const auto &entry : std::filesystem::directory_iterator("/proc", ec)) {
-    if (ec) {
-      break;
-    }
-    const std::string name = entry.path().filename().string();
-    if (name.empty() || !std::all_of(name.begin(), name.end(), [](unsigned char c) { return std::isdigit(c); })) {
-      continue;
-    }
-    int pid;
-    try {
-      pid = std::stoi(name);
-    }
-    catch (const std::exception &) {
-      continue;
-    }
-    live_pids.insert(pid);
-
-    // Cache the is-ROS decision per-PID to avoid re-scanning /proc/<pid>/maps every tick.
-    auto cache_it = pid_is_ros_.find(pid);
-    bool is_ros;
-    if (cache_it != pid_is_ros_.end()) {
-      is_ros = cache_it->second;
-    } else {
-      is_ros = isRosProcess(pid);
-      pid_is_ros_.emplace(pid, is_ros);
-    }
-    if (!is_ros) {
-      continue;
-    }
-
+  for (const int pid : ros_pids_) {
     const long ticks = readProcTicks(pid);
     if (ticks < 0) {
+      pid_is_ros_.erase(pid);
+      pid_name_cache_.erase(pid);
+      stale_ros_pids.push_back(pid);
       continue;
     }
     new_proc_ticks[pid] = ticks;
 
-    // First time we see this PID we have no baseline — skip emitting until next tick.
     const auto last_it = proc_last_ticks_.find(pid);
     if (last_it == proc_last_ticks_.end()) {
       continue;
     }
+
     const long diff = ticks - last_it->second;
     if (diff <= 0) {
+      if (diff < 0) {
+        pid_is_ros_.erase(pid);
+        pid_name_cache_.erase(pid);
+        stale_ros_pids.push_back(pid);
+      }
       continue;
     }
-    // top-style %: 100% == one fully-saturated core; cpu_total_diff_ is aggregated over all cores.
-    const float load_pct = 100.0f * static_cast<float>(diff) * static_cast<float>(cpu_cores_) / static_cast<float>(cpu_total_diff_);
+
+    const float load_pct = 100.0f * static_cast<float>(diff) * static_cast<float>(cpu_cores_) / static_cast<float>(node_cpu_total_diff_accum_);
+
+    auto name_it = pid_name_cache_.find(pid);
+    if (name_it == pid_name_cache_.end()) {
+      name_it = pid_name_cache_.emplace(pid, readProcName(pid)).first;
+    }
 
     mrs_msgs::msg::CpuLoad msg;
-    msg.node_name = readProcName(pid);
+    msg.node_name = name_it->second;
     msg.cpu_load  = load_pct;
-    snap_.node_cpu_loads.push_back(std::move(msg));
+    loads.push_back(std::move(msg));
   }
 
   proc_last_ticks_ = std::move(new_proc_ticks);
-
-  // Prune the is-ROS cache for PIDs that no longer exist (guards against PID-reuse drift).
-  for (auto it = pid_is_ros_.begin(); it != pid_is_ros_.end();) {
-    if (live_pids.find(it->first) == live_pids.end()) {
-      it = pid_is_ros_.erase(it);
-    } else {
-      ++it;
-    }
+  for (const int stale_pid : stale_ros_pids) {
+    ros_pids_.erase(stale_pid);
   }
+  snap_.node_cpu_loads       = std::move(loads);
+  node_cpu_total_diff_accum_ = 0;
+  last_node_cpu_sample_tp_   = now;
+  node_cpu_initialized_      = true;
 }
 
 void HostStats::readWifi() {
   // Reset to "unavailable" sentinels; only populate on a successful read.
   snap_.wifi_interface.clear();
-  snap_.wifi_signal_dbm   = std::numeric_limits<float>::quiet_NaN(); 
+  snap_.wifi_signal_dbm   = std::numeric_limits<float>::quiet_NaN();
   snap_.wifi_link_quality = -1;
 
   std::ifstream file("/proc/net/wireless");

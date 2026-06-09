@@ -89,6 +89,12 @@ void HostStats::setWifiInterface(std::string iface) {
   wifi_interface_filter_ = std::move(iface);
 }
 
+void HostStats::setNodeCpuPeriods(std::chrono::milliseconds node_cpu_sample_period, std::chrono::milliseconds pid_discovery_period) {
+  std::scoped_lock lock(mutex_);
+  node_cpu_sample_period_ = node_cpu_sample_period;
+  pid_discovery_period_   = pid_discovery_period;
+}
+
 void HostStats::update() {
   std::scoped_lock lock(mutex_);
   readCpuFreq();

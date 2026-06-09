@@ -89,7 +89,13 @@ void StateMonitor::initialize() {
   const auto state_timer_rate     = param_loader.loadParam2<double>("robot_diagnostics/state_timer_rate");
   auto       error_publisher_rate = param_loader.loadParam2<double>("robot_diagnostics/error_publisher_rate");
   const auto host_info_rate       = param_loader.loadParam2<double>("robot_diagnostics/host_info_rate");
-  not_reporting_delay_            = param_loader.loadParam2<rclcpp::Duration>("robot_diagnostics/not_reporting_delay");
+
+  // Default discovery period = 5 × the host-info period (i.e. 5 s at 1 Hz).
+  const double default_discovery_s = (host_info_rate > 0.0) ? (5.0 / host_info_rate) : 5.0;
+  double       node_cpu_discovery_period_s;
+  param_loader.loadParam("robot_diagnostics/node_cpu_discovery_period", node_cpu_discovery_period_s, default_discovery_s);
+
+  not_reporting_delay_ = param_loader.loadParam2<rclcpp::Duration>("robot_diagnostics/not_reporting_delay");
 
   std::string available_sensors_string;
   param_loader.loadParam("available_sensors", available_sensors_string);
@@ -205,6 +211,12 @@ void StateMonitor::initialize() {
   // | -------- Acquisition utils ------ |
   host_stats_ = std::make_unique<utils::HostStats>();
   host_stats_->setWifiInterface(wifi_interface);
+  {
+    // Derive sample period from host_info_rate; discovery period from the loaded param.
+    const auto sample_ms    = std::chrono::milliseconds(static_cast<long>(1000.0 / host_info_rate));
+    const auto discovery_ms = std::chrono::milliseconds(static_cast<long>(node_cpu_discovery_period_s * 1000.0));
+    host_stats_->setNodeCpuPeriods(sample_ms, discovery_ms);
+  }
   flight_timer_          = std::make_unique<utils::FlightTimer>(clock_);
   wh_drained_integrator_ = std::make_unique<utils::WhDrainedIntegrator>(clock_);
 
